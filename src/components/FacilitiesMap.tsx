@@ -168,7 +168,7 @@ export function FacilitiesMap({ facilities, selectedId, onSelect }: FacilitiesMa
           (window as unknown as Record<string, unknown>).__facilitiesMapView = view;
         }
 
-        view.on('click', (event) => {
+        view.on('click', (event: { x: number; y: number }) => {
           void view
             ?.hitTest(event)
             .then((response) => {
