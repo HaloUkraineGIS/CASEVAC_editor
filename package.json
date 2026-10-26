@@ -1,0 +1,28 @@
+{
+  "name": "casevac-planner",
+  "private": true,
+  "version": "0.2.5",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" index.html",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" index.html"
+  },
+  "dependencies": {
+    "@arcgis/core": "^5.1.27",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "prettier": "^3.9.10",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.5"
+  }
+}

@@ -1,0 +1,5 @@
+node_modules
+dist
+template
+*.md
+package-lock.json
