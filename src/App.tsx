@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { DataProvider, useData } from './data/DataContext';
+import { Menu } from 'lucide-react';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
-import { Topbar } from './components/Topbar';
 import { ToastProvider, useToast } from './components/ToastContext';
 import { areaPlans, eodPlans } from './data/planData';
 import { AreaPlanPage } from './pages/AreaPlanPage';
@@ -13,7 +13,7 @@ import { RoutesPage } from './pages/RoutesPage';
 import type { PageId } from './types';
 
 function AppFrame() {
-  const [page, setPage] = useState<PageId>('routes');
+  const [page, setPage] = useState<PageId>('facilities');
   const [menuOpen, setMenuOpen] = useState(false);
   const { snapshot } = useData();
   const { error, dismissError, promptOpen } = useAuth();
@@ -55,7 +55,14 @@ function AppFrame() {
         }}
       />
       <main className="main-content">
-        <Topbar page={page} onOpenMenu={() => setMenuOpen(true)} />
+        <button
+          className="mobile-menu-fab"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Відкрити меню"
+          title="Меню"
+        >
+          <Menu size={20} />
+        </button>
         {content}
       </main>
       {menuOpen && (

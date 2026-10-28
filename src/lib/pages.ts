@@ -8,8 +8,8 @@ export interface PageMeta {
 
 export const pageMeta: Record<PageId, PageMeta> = {
   routes: {
-    label: 'Маршрути CASEVAC',
-    shortLabel: 'Маршрути',
+    label: 'Маршрути CASEVAC ділянок розмінування',
+    shortLabel: 'Маршрути CASEVAC ділянок розмінування',
     description: 'Керуйте маршрутами евакуації та пов’язаними медичними закладами.',
   },
   facilities: {
@@ -19,12 +19,12 @@ export const pageMeta: Record<PageId, PageMeta> = {
   },
   'area-plan': {
     label: 'План реагування на область',
-    shortLabel: 'План на область',
+    shortLabel: 'План реагування на область',
     description: 'Стан і склад планів реагування за областями.',
   },
   'eod-plan': {
-    label: 'План реагування CDS (EOD)',
-    shortLabel: 'План CDS (EOD)',
+    label: 'Маршрути CASEVAC CDS',
+    shortLabel: 'Маршрути CASEVAC CDS',
     description: 'Плани CASEVAC для завдань EOD та їхні шаблони.',
   },
 };

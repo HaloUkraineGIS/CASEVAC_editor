@@ -135,7 +135,7 @@ export function RoutesPage() {
             <span className="eyebrow-line" />
             ПЛАНУВАННЯ ЕВАКУАЦІЇ
           </div>
-          <h1>Маршрути CASEVAC</h1>
+          <h1>Маршрути CASEVAC ділянок розмінування</h1>
           <p>Керуйте маршрутами евакуації та пов’язаними медичними закладами.</p>
         </div>
         <div className="heading-actions">

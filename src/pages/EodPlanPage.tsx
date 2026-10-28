@@ -38,7 +38,7 @@ export function EodPlanPage() {
             <span className="eyebrow-line" />
             ПЛАНИ ДЛЯ ЗАВДАНЬ EOD
           </div>
-          <h1>План реагування CDS (EOD)</h1>
+          <h1>Маршрути CASEVAC CDS</h1>
           <p>Плани CASEVAC для завдань з розмінування та стан їхньої готовності.</p>
         </div>
         <div className="heading-actions">

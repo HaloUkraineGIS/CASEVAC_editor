@@ -35,12 +35,12 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
   const { notify } = useToast();
 
   const workspaceNav: NavItem[] = [
-    { page: 'routes', icon: Map, count: counts.routes },
     { page: 'facilities', icon: Building2, count: counts.facilities },
+    { page: 'routes', icon: Map, count: counts.routes },
   ];
   const planNav: NavItem[] = [
-    { page: 'area-plan', icon: Globe2, count: counts.areaPlans },
     { page: 'eod-plan', icon: ShieldAlert, count: counts.eodPlans },
+    { page: 'area-plan', icon: Globe2, count: counts.areaPlans },
   ];
 
   const syncState = (() => {
@@ -68,7 +68,7 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
     if (status === 'signedIn' && user) {
       return {
         title: user.fullName,
-        note: user.role === 'org_admin' ? 'Адміністратор організації' : 'Медичний відділ',
+        note: '',
         avatar: initials(user.fullName),
         action: signOut,
         actionLabel: 'Вийти',
@@ -166,7 +166,7 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
           <div className="avatar">{profile.avatar}</div>
           <div className="user-copy">
             <strong title={profile.title}>{profile.title}</strong>
-            <span>{profile.note}</span>
+            {profile.note && <span>{profile.note}</span>}
           </div>
           <button
             className="icon-button"
