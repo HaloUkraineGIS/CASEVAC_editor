@@ -207,7 +207,7 @@ export function FacilitiesPage() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content facilities-page">
       <section className="page-heading">
         <div>
           <div className="eyebrow">
@@ -383,11 +383,10 @@ export function FacilitiesPage() {
             <aside className="facility-map-panel">
               <div className="facility-map-panel-head">
                 <span>Усі заклади на карті</span>
-                <span className="facility-map-legend">
-                  <i className="legend-verified" />
-                  Перевірені
-                  <i className="legend-stale" />
-                  Потрібен візит
+                <span className="facility-map-source">
+                  {source?.kind === 'arcgis'
+                    ? 'Веб-карта Portal · Medical facilities'
+                    : 'Базова карта · демо-дані'}
                 </span>
               </div>
               <Suspense
@@ -401,6 +400,7 @@ export function FacilitiesPage() {
                   facilities={filtered}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
+                  filterActive={query.trim().length > 0}
                 />
               </Suspense>
               {selected ? (
