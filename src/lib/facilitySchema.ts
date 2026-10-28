@@ -422,6 +422,11 @@ export function buildFacilitySchema(input: BuildFacilitySchemaInput): FacilitySc
     if (field) field.required = true;
   });
 
+  // Статус активності визначає участь закладу в маршрутах CASEVAC,
+  // тому у формі він обов'язковий незалежно від nullable у шарі.
+  const activeField = fields.find((field) => isActiveKey(field.name));
+  if (activeField) activeField.required = true;
+
   return {
     source: input.source,
     layerTitle: input.title,
@@ -552,6 +557,17 @@ export function capabilitySummary(
   return items.length > 4 ? `${head} +${items.length - 4}` : head;
 }
 
+const ACTIVE_TRUE_VALUES = new Set([
+  'yes',
+  'y',
+  'так',
+  'є',
+  'true',
+  '1',
+  'active',
+  'активний',
+]);
+
 /**
  * Чи активний заклад: поле is_active у шарі зберігає yes/no,
  * у демо-даних — «Так»/«Ні», тому приймаємо всі поширені варіанти.
@@ -560,21 +576,41 @@ export function isActiveValue(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value === 1;
   const text = String(value ?? '').trim().toLowerCase();
-  return text === 'yes' || text === 'так' || text === 'true' || text === '1';
+  return ACTIVE_TRUE_VALUES.has(text);
 }
 
-/** Читає поле is_active з атрибутів за схемою шару. */
+/** Назва поля чи атрибута, що означає «заклад активний». */
+function isActiveKey(name: string): boolean {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === 'isactive';
+}
+
+/** Поле статусу активності у схемі — показується окремим блоком форми. */
+export function facilityActiveField(schema: FacilitySchema): FacilityField | null {
+  return schema.fields.find((item) => isActiveKey(item.name)) ?? null;
+}
+
+/**
+ * Читає поле is_active з атрибутів незалежно від регістру ключа
+ * (Portal може віддати Is_Active / isActive), а якщо поля немає у схемі —
+ * шукає відповідний ключ у самих атрибутах.
+ */
 export function facilityIsActive(
   schema: FacilitySchema,
   attributes: Record<string, unknown>,
 ): boolean {
-  const field =
-    schema.fields.find((item) => item.name.toLowerCase() === 'is_active') ??
-    schema.fields.find(
-      (item) => item.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'isactive',
-    ) ??
+  const keys = Object.keys(attributes);
+  const fromSchema = schema.fields
+    .filter((item) => isActiveKey(item.name))
+    .map((item) => item.name)
+    .find((name) => keys.includes(name));
+
+  const key =
+    fromSchema ??
+    keys.find((name) => isActiveKey(name)) ??
+    keys.find((name) => name.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === 'active') ??
     null;
-  return isActiveValue(field ? attributes[field.name] : attributes.is_active);
+
+  return key ? isActiveValue(attributes[key]) : false;
 }
 
 /** Створює картку закладу зі значень форми (спільне для Portal і демо-режиму). */
@@ -636,6 +672,14 @@ export function initialFacilityValues(
     const source = isFieldEmpty(raw) ? field.defaultValue : raw;
     values[field.name] = toInputValue(field, source);
   });
+  // Новий заклад типово активний: у формі це обов'язковий статус,
+  // тож підставляємо перше дозволене значення домену (yes / Так).
+  if (!record) {
+    const activeField = schema.fields.find((field) => isActiveKey(field.name));
+    if (activeField && isFieldEmpty(values[activeField.name])) {
+      values[activeField.name] = String(activeField.domain?.options?.[0]?.value ?? 'yes');
+    }
+  }
   return values;
 }
 

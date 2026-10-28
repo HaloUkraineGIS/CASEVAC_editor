@@ -5,7 +5,6 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
-  CircleHelp,
   Hospital,
   Layers3,
   Map,
@@ -247,10 +246,6 @@ export function FacilitiesPage() {
     <div className="page-content facilities-page">
       <section className="page-heading">
         <div>
-          <div className="eyebrow">
-            <span className="eyebrow-line" />
-            МЕРЕЖА МЕДИЧНОЇ ДОПОМОГИ
-          </div>
           <h1>Медичні заклади</h1>
           <p>Актуальна інформація про лікарні та їхні можливості.</p>
         </div>
@@ -389,17 +384,17 @@ export function FacilitiesPage() {
                       <div className="facility-title-row">
                         <h3>{facility.name}</h3>
                         <span
+                          className={`facility-status ${facility.isActive ? 'facility-active' : 'facility-inactive'}`}
+                        >
+                          <span />
+                          {facility.isActive ? 'Активний' : 'Неактивний'}
+                        </span>
+                        <span
                           className={`facility-status ${stale ? 'facility-needs-visit' : 'facility-verified'}`}
                         >
                           <span />
                           {visitLabel(facility)}
                         </span>
-                        {!facility.isActive && (
-                          <span className="facility-status facility-inactive">
-                            <span />
-                            Неактивний
-                          </span>
-                        )}
                       </div>
                       <div className="facility-meta">
                         <span>
@@ -509,24 +504,6 @@ export function FacilitiesPage() {
               {source?.kind === 'arcgis'
                 ? 'Дані Portal · Feature Service'
                 : 'Демо-дані · зміни лише в пам’яті'}
-            </span>
-          </div>
-        </section>
-
-        <section className="facility-note">
-          <span className="facility-note-icon">
-            <CircleHelp size={18} />
-          </span>
-          <div>
-            <strong>
-              {schema?.source === 'arcgis'
-                ? 'Форма побудована зі схеми шару'
-                : 'Демонстраційна схема картки'}
-            </strong>
-            <span>
-              {schema
-                ? `${schema.fields.length} полів · ${schema.sections.length} розділів · домени, обов’язковість і типи беруться з метаданих сервісу.`
-                : 'Схема полів недоступна. Оновіть дані після входу через Portal.'}
             </span>
           </div>
         </section>

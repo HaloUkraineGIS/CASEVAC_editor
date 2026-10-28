@@ -1,5 +1,6 @@
 import { lazy, Suspense, useId } from 'react';
 import { Clock3, MapPin } from 'lucide-react';
+import { facilityActiveField } from '../lib/facilitySchema';
 import type { FacilityField, FacilityRecord, FacilitySchema, LonLat } from '../types';
 
 const FacilityMapPicker = lazy(() =>
@@ -120,11 +121,45 @@ export function FacilityForm({
   onLocationChange,
 }: FacilityFormProps) {
   const visitedBy = schema.core.visitedBy;
+  const activeField = facilityActiveField(schema);
   const suggestMedics = (field: FacilityField): string[] => {
     if (field.name !== visitedBy) return [];
     const current = String(values[field.name] ?? '').trim();
     return current && !medics.includes(current) ? [current, ...medics] : medics;
   };
+
+  const renderField = (field: FacilityField) => {
+    const error = errors[field.name];
+    const wide = field.kind === 'longText';
+    return (
+      <label
+        key={field.name}
+        className={`form-label ${wide ? 'form-label-wide' : ''}`}
+        title={field.description || field.name}
+      >
+        <span className="field-label">
+          {field.alias}
+          {field.required && <i className="field-required">*</i>}
+        </span>
+        <FieldControl
+          field={field}
+          value={values[field.name] ?? ''}
+          error={error}
+          medics={suggestMedics(field)}
+          onChange={(value) => onChange(field.name, value)}
+        />
+        {error && <em className="form-error">{error}</em>}
+      </label>
+    );
+  };
+
+  // Статус активності має окремий блок одразу після карти.
+  const sections = schema.sections
+    .map((section) => ({
+      ...section,
+      fields: section.fields.filter((field) => field.name !== activeField?.name),
+    }))
+    .filter((section) => section.fields.length > 0);
 
   return (
     <div className="facility-form">
@@ -154,7 +189,13 @@ export function FacilityForm({
         {locationError && <em className="form-error map-location-error">{locationError}</em>}
       </section>
 
-      {schema.sections.map((section) => (
+      {activeField && (
+        <section className="form-section form-section-active">
+          <div className="form-grid form-grid-single">{renderField(activeField)}</div>
+        </section>
+      )}
+
+      {sections.map((section) => (
         <section
           key={section.id}
           className={`form-section ${section.id === 'visit' ? 'form-section-visit' : ''}`}
@@ -172,32 +213,7 @@ export function FacilityForm({
             </div>
             <span className="form-section-count">{section.fields.length}</span>
           </div>
-          <div className="form-grid">
-            {section.fields.map((field) => {
-              const error = errors[field.name];
-              const wide = field.kind === 'longText';
-              return (
-                <label
-                  key={field.name}
-                  className={`form-label ${wide ? 'form-label-wide' : ''}`}
-                  title={field.description || field.name}
-                >
-                  <span className="field-label">
-                    {field.alias}
-                    {field.required && <i className="field-required">*</i>}
-                  </span>
-                  <FieldControl
-                    field={field}
-                    value={values[field.name] ?? ''}
-                    error={error}
-                    medics={suggestMedics(field)}
-                    onChange={(value) => onChange(field.name, value)}
-                  />
-                  {error && <em className="form-error">{error}</em>}
-                </label>
-              );
-            })}
-          </div>
+          <div className="form-grid">{section.fields.map(renderField)}</div>
         </section>
       ))}
     </div>

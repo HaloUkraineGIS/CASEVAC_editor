@@ -1620,11 +1620,19 @@ select:focus-visible {
 .facility-needs-visit > span {
   background: #d6a352;
 }
+.facility-active {
+  color: #2f7d5a;
+  font-weight: 700;
+}
+.facility-active > span {
+  background: #2c8a5f;
+}
 .facility-inactive {
-  color: #7f8a85;
+  color: #57635d;
+  font-weight: 700;
 }
 .facility-inactive > span {
-  background: #9ba6a0;
+  background: #77837d;
 }
 .facility-meta {
   display: flex;
@@ -3160,6 +3168,12 @@ select:focus-visible {
   background: #f3f8f4;
   border-color: #dde9e1;
 }
+/* Статус активності — акцентний блок одразу після карти. */
+.form-section-active {
+  background: #edf7f1;
+  border-color: #cfe6d8;
+  box-shadow: inset 3px 0 0 #2c6b4e;
+}
 .form-section-head {
   display: flex;
   align-items: flex-start;
@@ -3202,6 +3216,9 @@ select:focus-visible {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px 12px;
+}
+.form-grid-single {
+  grid-template-columns: 1fr;
 }
 .form-label-wide {
   grid-column: 1 / -1;
@@ -3691,4 +3708,50 @@ select:focus-visible {
     flex: 0 0 auto;
     height: 26px;
   }
+}
+
+/* Форма закладу: компактні відступи, щоб у вікно вміщалося більше полів. */
+.facilities-page .modal-header {
+  padding: 14px 18px 10px;
+}
+.facilities-page .modal-form-content {
+  gap: 7px;
+  padding: 12px 16px;
+}
+.facilities-page .facility-form {
+  gap: 7px;
+}
+.facilities-page .form-section {
+  padding: 7px 10px;
+}
+.facilities-page .form-section-head {
+  margin-bottom: 5px;
+}
+.facilities-page .form-grid {
+  gap: 6px 10px;
+}
+.facilities-page .form-label {
+  gap: 3px;
+}
+/* Підписи полів — жирні, введені значення та пункти списків — звичайні. */
+.facilities-page .form-label .field-label {
+  font-weight: 700;
+}
+.facilities-page .form-label input,
+.facilities-page .form-label select,
+.facilities-page .form-label textarea {
+  font-weight: 400;
+}
+.facilities-page .form-label input,
+.facilities-page .form-label select {
+  height: 31px;
+}
+.facilities-page .form-label textarea {
+  min-height: 52px;
+}
+.facilities-page .facility-map-wrap {
+  height: 190px;
+}
+.facilities-page .modal-card-wide .modal-form-content {
+  max-height: calc(100vh - 150px);
 }
