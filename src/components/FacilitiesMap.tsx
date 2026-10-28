@@ -15,7 +15,7 @@ import MapView from '@arcgis/core/views/MapView.js';
 import WebMap from '@arcgis/core/WebMap.js';
 import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol.js';
 import Legend from '@arcgis/core/widgets/Legend.js';
-import { Loader2, MapPinOff } from 'lucide-react';
+import { Layers3, Loader2, MapPinOff } from 'lucide-react';
 import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useAuth } from '../auth/AuthContext';
 import { appConfig } from '../config/appConfig';
@@ -252,6 +252,7 @@ export function FacilitiesMap({
   const viewRef = useRef<MapView | null>(null);
   const graphicsRef = useRef<GraphicsLayer | null>(null);
   const highlightRef = useRef<GraphicsLayer | null>(null);
+  const legendRef = useRef<Legend | null>(null);
   const targetRef = useRef<MedicalTarget | null>(null);
   const modeRef = useRef<MapMode>('fallback');
   const facilitiesRef = useRef<FacilityRecord[]>(facilities);
@@ -259,9 +260,11 @@ export function FacilitiesMap({
   const filterActiveRef = useRef(filterActive);
   const onSelectRef = useRef(onSelect);
   const basemapKeyRef = useRef<BasemapKey>('osm');
+  const legendVisibleRef = useRef(false);
   const focusedOnceRef = useRef(false);
   const lastCenteredRef = useRef<string | null>(null);
   const [basemapKey, setBasemapKey] = useState<BasemapKey>('osm');
+  const [legendVisible, setLegendVisible] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [notice, setNotice] = useState('');
@@ -273,6 +276,7 @@ export function FacilitiesMap({
   filterActiveRef.current = filterActive;
   onSelectRef.current = onSelect;
   basemapKeyRef.current = basemapKey;
+  legendVisibleRef.current = legendVisible;
 
   /** Малює маркери застосунку (демо-режим або резервна карта). */
   const renderGraphics = useCallback(() => {
@@ -475,6 +479,8 @@ export function FacilitiesMap({
 
           webmap.basemap = createBasemap(basemapKeyRef.current);
           const legend = new Legend({ view });
+          legend.visible = legendVisibleRef.current;
+          legendRef.current = legend;
           view.ui.add(legend, 'bottom-right');
           applyLayerFilter();
           setStatus('ready');
@@ -507,6 +513,7 @@ export function FacilitiesMap({
       mapRef.current = null;
       graphicsRef.current = null;
       highlightRef.current = null;
+      legendRef.current = null;
       targetRef.current = null;
       view?.destroy();
     };
@@ -527,6 +534,11 @@ export function FacilitiesMap({
     if (!map || status !== 'ready') return;
     map.basemap = createBasemap(basemapKey);
   }, [basemapKey, status]);
+
+  // Показ/приховування легенди умовних знаків.
+  useEffect(() => {
+    if (legendRef.current) legendRef.current.visible = legendVisible;
+  }, [legendVisible]);
 
   // Підсвічування зі списку: підводимо карту до вибраного закладу.
   useEffect(() => {
@@ -550,20 +562,35 @@ export function FacilitiesMap({
       <div ref={containerRef} className="facility-map" />
       {status !== 'error' && (
         <div className="facility-map-controls">
-          <label className="facility-basemap-control">
-            <span>Підкладка</span>
-            <select
-              value={basemapKey}
-              onChange={(event) => setBasemapKey(event.target.value as BasemapKey)}
-              aria-label="Базова карта"
-            >
-              {BASEMAP_OPTIONS.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="facility-map-control-row">
+            <label className="facility-basemap-control">
+              <span>Підкладка</span>
+              <select
+                value={basemapKey}
+                onChange={(event) => setBasemapKey(event.target.value as BasemapKey)}
+                aria-label="Базова карта"
+              >
+                {BASEMAP_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {status === 'ready' && modeRef.current === 'webmap' && (
+              <button
+                type="button"
+                className={`facility-legend-toggle ${legendVisible ? 'is-active' : ''}`}
+                onClick={() => setLegendVisible((visible) => !visible)}
+                aria-pressed={legendVisible}
+                aria-label="Показати умовні знаки"
+                title="Умовні знаки шару"
+              >
+                <Layers3 size={13} />
+                Легенда
+              </button>
+            )}
+          </div>
           {notice && status === 'ready' && <span className="facility-map-notice">{notice}</span>}
         </div>
       )}
@@ -578,9 +605,6 @@ export function FacilitiesMap({
           <MapPinOff size={16} />
           <span>Карту не вдалося завантажити.</span>
         </div>
-      )}
-      {status === 'ready' && modeRef.current === 'webmap' && (
-        <span className="facility-map-hint">Шар Medical facilities з веб-карти Portal</span>
       )}
       {status === 'ready' && modeRef.current === 'fallback' && (
         <span className="facility-map-hint">Натисніть на маркер, щоб вибрати заклад</span>
