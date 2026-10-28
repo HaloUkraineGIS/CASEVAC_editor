@@ -1,4 +1,5 @@
 import type { DataSnapshot, FacilityRecord, MinefieldRecord, RouteRecord, StartPointRecord } from '../types';
+import { isActiveValue } from '../lib/facilitySchema';
 import { demoFacilityAttributes, demoFacilitySchema } from './demoFacilitySchema';
 
 /**
@@ -101,6 +102,7 @@ const facilitySeeds: FacilitySeed[] = [
       operations: 'Загальна хірургія',
       doctors: 'Хірурги, терапевти',
       staff_count: 260,
+      is_active: 'Ні',
       notes: 'Потрібне оновлення даних про можливості закладу.',
     },
   },
@@ -144,6 +146,7 @@ const facilitySeeds: FacilitySeed[] = [
       operations: 'Загальна хірургія',
       doctors: 'Хірурги, терапевти',
       staff_count: 210,
+      is_active: 'Ні',
     },
   },
 ];
@@ -156,6 +159,7 @@ const facilities: FacilityRecord[] = facilitySeeds.map((seed) => ({
   departments: seed.departments,
   lastVisitDate: seed.lastVisitDate,
   visitedBy: seed.visitedBy,
+  isActive: isActiveValue(seed.extra?.is_active ?? 'Так'),
   location: seed.location,
   attributes: demoFacilityAttributes({
     name: seed.name,

@@ -3,6 +3,7 @@ import {
   buildFacilitySchema,
   capabilitySummary,
   displayFieldValue,
+  facilityIsActive,
   facilityRecordFromValues,
   fieldByName,
   isFieldEmpty,
@@ -299,6 +300,7 @@ export function createArcGisSource(token: string): DataSource {
           ? (toInputValue(visitField, attributes[visitField.name]) as string)
           : '',
         visitedBy: display(fieldByName(schema, schema.core.visitedBy)),
+        isActive: facilityIsActive(schema, attributes),
         location: pointFromGeometry(feature.geometry),
         attributes,
       };

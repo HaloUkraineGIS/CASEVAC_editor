@@ -552,6 +552,31 @@ export function capabilitySummary(
   return items.length > 4 ? `${head} +${items.length - 4}` : head;
 }
 
+/**
+ * Чи активний заклад: поле is_active у шарі зберігає yes/no,
+ * у демо-даних — «Так»/«Ні», тому приймаємо всі поширені варіанти.
+ */
+export function isActiveValue(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  const text = String(value ?? '').trim().toLowerCase();
+  return text === 'yes' || text === 'так' || text === 'true' || text === '1';
+}
+
+/** Читає поле is_active з атрибутів за схемою шару. */
+export function facilityIsActive(
+  schema: FacilitySchema,
+  attributes: Record<string, unknown>,
+): boolean {
+  const field =
+    schema.fields.find((item) => item.name.toLowerCase() === 'is_active') ??
+    schema.fields.find(
+      (item) => item.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'isactive',
+    ) ??
+    null;
+  return isActiveValue(field ? attributes[field.name] : attributes.is_active);
+}
+
 /** Створює картку закладу зі значень форми (спільне для Portal і демо-режиму). */
 export function facilityRecordFromValues(
   schema: FacilitySchema,
@@ -594,6 +619,7 @@ export function facilityRecordFromValues(
     departments: display(departmentsField) || capabilitySummary(schema, attributes),
     lastVisitDate: typeof visitValue === 'number' ? String(visitValue) : visitValue,
     visitedBy: display(visitedField),
+    isActive: facilityIsActive(schema, attributes),
     location: options.location,
     attributes,
   };

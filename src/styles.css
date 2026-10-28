@@ -358,6 +358,19 @@ select:focus-visible {
   gap: 12px;
   margin-bottom: 17px;
 }
+/* П’ять підсумкових карток на сторінці закладів. */
+@media (min-width: 1001px) {
+  .summary-grid-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+@media (min-width: 761px) and (max-width: 1000px) {
+  .summary-grid-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
 .summary-card {
   background: #fff;
   border: 1px solid #e8edeb;
@@ -365,6 +378,33 @@ select:focus-visible {
   padding: 14px 15px 12px;
   min-height: 104px;
   box-shadow: var(--shadow);
+}
+.summary-card-button {
+  display: block;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.14s,
+    box-shadow 0.14s,
+    background 0.14s;
+}
+.summary-card-button:hover {
+  border-color: #bcd8c8;
+  box-shadow: 0 7px 18px #15231f17;
+}
+.summary-card-button:focus-visible {
+  outline: 2px solid #2f6f52;
+  outline-offset: 2px;
+}
+.summary-card-button.is-active {
+  border-color: #2f6f52;
+  background: #f5fbf7;
+  box-shadow:
+    inset 0 0 0 1px #2f6f52,
+    0 6px 16px #15231f1c;
 }
 .summary-card-top {
   display: flex;
@@ -396,6 +436,10 @@ select:focus-visible {
 .summary-icon.amber {
   background: #fbf4e8;
   color: #b58a43;
+}
+.summary-icon.teal {
+  background: #e6f4f0;
+  color: #1f7a6b;
 }
 .summary-card-value {
   font:
@@ -429,6 +473,9 @@ select:focus-visible {
 }
 .summary-detail-dot.amber {
   background: #d9ab5c;
+}
+.summary-detail-dot.teal {
+  background: #35a08b;
 }
 .panel {
   border: 1px solid #e8edeb;
@@ -1143,7 +1190,7 @@ select:focus-visible {
   margin-left: 0;
 }
 .list-count {
-  font-size: 9px;
+  font-size: 10px;
   background: #eef3f0;
   color: #71837a;
   padding: 3px 6px;
@@ -1363,8 +1410,8 @@ select:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #9aa49f;
-  font-size: 8px;
+  color: #8b9791;
+  font-size: 9.5px;
 }
 .table-footer strong {
   color: #687770;
@@ -1433,6 +1480,38 @@ select:focus-visible {
 .search-field-wide input {
   width: 100%;
 }
+.facility-toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.search-field-wide {
+  flex: 0 1 255px;
+  min-width: 0;
+}
+.active-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid #b9d8c7;
+  border-radius: 99px;
+  background: #eaf5ee;
+  color: #256b4d;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.active-filter-chip:hover {
+  background: #dcefe3;
+  border-color: #9dc9b1;
+}
+.facility-toolbar-main .filter-square {
+  margin-left: auto;
+}
 .filter-square {
   width: 30px;
   height: 29px;
@@ -1464,11 +1543,18 @@ select:focus-visible {
   background: #fbfdfb;
 }
 .facility-row-selected {
-  background: #f1f8f3;
-  box-shadow: inset 3px 0 0 #4a8f6c;
+  background: #d9eadf;
+  box-shadow: inset 4px 0 0 #2c6b4e;
 }
 .facility-row-selected:hover {
-  background: #edf6f0;
+  background: #d1e5d8;
+}
+.facility-row-selected .facility-title-row h3 {
+  color: #1f3a2d;
+}
+.facility-row-selected .facility-meta span,
+.facility-row-selected .facility-departments {
+  color: #5c7468;
 }
 .facility-avatar {
   width: 38px;
@@ -1507,14 +1593,14 @@ select:focus-visible {
 .facility-title-row h3 {
   margin: 0;
   color: #394b43;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
 }
 .facility-status {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 8px;
+  font-size: 9.5px;
   font-weight: 600;
 }
 .facility-status > span {
@@ -1534,6 +1620,12 @@ select:focus-visible {
 .facility-needs-visit > span {
   background: #d6a352;
 }
+.facility-inactive {
+  color: #7f8a85;
+}
+.facility-inactive > span {
+  background: #9ba6a0;
+}
 .facility-meta {
   display: flex;
   align-items: center;
@@ -1546,8 +1638,8 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #89958f;
-  font-size: 8.5px;
+  color: #78877f;
+  font-size: 10px;
 }
 .facility-meta-visit {
   display: none;
@@ -1570,21 +1662,25 @@ select:focus-visible {
 }
 .facility-visit > span,
 .facility-route-count > span {
-  font-size: 7px;
+  font-size: 8.5px;
   letter-spacing: 0.06em;
-  color: #9ba6a1;
+  color: #86938d;
   font-weight: 700;
 }
 .facility-visit > strong {
-  font-size: 9px;
-  color: #66756e;
+  font-size: 10.5px;
+  color: #5a6b62;
   font-weight: 600;
+}
+.facility-visit > small {
+  color: #8a9790;
+  font-size: 9px;
 }
 .facility-route-count {
   min-width: 58px;
 }
 .facility-route-count strong {
-  font: 600 12px Manrope;
+  font: 600 13px Manrope;
   color: #54665d;
 }
 .button-row-edit {
@@ -1592,7 +1688,7 @@ select:focus-visible {
   background: #fff;
   border-color: #e6ece8;
   color: #718079;
-  font-size: 9px;
+  font-size: 10px;
   padding: 0 8px;
 }
 .button-row-edit:hover {
@@ -1708,11 +1804,11 @@ select:focus-visible {
   flex: 1;
 }
 .facility-note > div strong {
-  font-size: 9px;
+  font-size: 10.5px;
   color: #50645a;
 }
 .facility-note > div span {
-  font-size: 8px;
+  font-size: 9.5px;
   color: #85928b;
 }
 .facility-note .icon-button:hover {
@@ -1789,7 +1885,7 @@ select:focus-visible {
 .modal-header p {
   margin: 0;
   color: #84918b;
-  font-size: 10px;
+  font-size: 11px;
 }
 .modal-form-content {
   display: grid;
@@ -1800,7 +1896,7 @@ select:focus-visible {
   display: grid;
   gap: 6px;
   color: #53645b;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 .field-label {
@@ -1820,7 +1916,7 @@ select:focus-visible {
   background: white;
   color: #51615a;
   padding: 0 10px;
-  font-size: 10px;
+  font-size: 12px;
   outline: 0;
 }
 .form-label input::placeholder {
@@ -1838,7 +1934,7 @@ select:focus-visible {
   border: 1px solid #e6f0e9;
   border-radius: 6px;
   color: #71857a;
-  font-size: 9px;
+  font-size: 10.5px;
   line-height: 1.5;
 }
 .form-info svg {
@@ -2033,11 +2129,11 @@ select:focus-visible {
   color: #82a18f;
 }
 .no-results strong {
-  font-size: 11px;
+  font-size: 11.5px;
   color: #53645b;
 }
 .no-results span {
-  font-size: 9px;
+  font-size: 10px;
 }
 .mobile-scrim {
   display: none;
@@ -2264,14 +2360,17 @@ select:focus-visible {
     min-height: 93px;
     padding: 11px;
   }
+  .summary-grid-5 .summary-card:last-child {
+    grid-column: 1 / -1;
+  }
   .summary-card-top {
-    font-size: 9px;
+    font-size: 10px;
   }
   .summary-card-value {
     font-size: 21px;
   }
   .summary-card-detail {
-    font-size: 8px;
+    font-size: 9px;
   }
   .workspace-grid {
     grid-template-columns: 1fr;
@@ -2355,7 +2454,10 @@ select:focus-visible {
     justify-content: stretch;
   }
   .search-field-wide {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .facility-toolbar-main {
     width: 100%;
   }
   .facility-row {
@@ -2629,8 +2731,8 @@ select:focus-visible {
   color: #98a39f;
 }
 .facility-visit small {
-  font-size: 8px;
-  color: #a3aea8;
+  font-size: 9.5px;
+  color: #8a9790;
   line-height: 1.35;
 }
 
@@ -3071,7 +3173,7 @@ select:focus-visible {
   gap: 6px;
   margin: 0;
   color: #33453e;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -3080,8 +3182,8 @@ select:focus-visible {
   align-items: center;
   gap: 5px;
   margin: 4px 0 0;
-  color: #85928b;
-  font-size: 8.5px;
+  color: #78877f;
+  font-size: 10px;
   line-height: 1.45;
 }
 .form-section-count {
@@ -3093,7 +3195,7 @@ select:focus-visible {
   border-radius: 99px;
   background: #edf4ef;
   color: #6f8d7d;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
 }
 .form-grid {
@@ -3112,7 +3214,7 @@ select:focus-visible {
   background: #fff;
   color: #51615a;
   font:
-    10px Manrope,
+    12px Manrope,
     sans-serif;
   line-height: 1.5;
   outline: 0;
@@ -3130,7 +3232,7 @@ select:focus-visible {
 }
 .form-error {
   color: #b05240;
-  font-size: 8px;
+  font-size: 9.5px;
   font-style: normal;
   line-height: 1.35;
 }
@@ -3245,7 +3347,7 @@ select:focus-visible {
   border-radius: 7px;
   background: #f6faf7;
   color: #6b7d73;
-  font-size: 9px;
+  font-size: 10.5px;
 }
 .facility-detail-meta span {
   display: flex;
@@ -3262,7 +3364,7 @@ select:focus-visible {
   gap: 7px;
   margin: 0 0 7px;
   color: #3b5046;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 .detail-section h3 span {
@@ -3274,7 +3376,7 @@ select:focus-visible {
   border-radius: 99px;
   background: #edf4ef;
   color: #749181;
-  font-size: 7.5px;
+  font-size: 8.5px;
 }
 .detail-grid {
   display: grid;
@@ -3295,15 +3397,15 @@ select:focus-visible {
   grid-column: 1 / -1;
 }
 .detail-cell > span {
-  color: #98a39f;
-  font-size: 7.5px;
+  color: #8c9993;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .detail-cell > strong {
   color: #33453e;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -3311,7 +3413,7 @@ select:focus-visible {
 }
 .detail-hint {
   color: #a06a5b;
-  font-size: 8px;
+  font-size: 9.5px;
   line-height: 1.45;
 }
 .form-warning {
@@ -3323,7 +3425,7 @@ select:focus-visible {
   border-radius: 7px;
   background: #fdf4f1;
   color: #87594c;
-  font-size: 9px;
+  font-size: 10.5px;
   line-height: 1.5;
 }
 .form-warning > div {
@@ -3333,7 +3435,7 @@ select:focus-visible {
 }
 .form-warning strong {
   color: #7d4638;
-  font-size: 9.5px;
+  font-size: 11px;
 }
 .form-warning svg {
   flex: 0 0 auto;

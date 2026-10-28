@@ -36,6 +36,8 @@ export interface FacilityRecord {
   /** Дата останнього візиту, ISO (yyyy-mm-dd). Порожній рядок — візиту не було. */
   lastVisitDate: string;
   visitedBy: string;
+  /** Заклад активний (поле is_active: yes / так / true / 1). */
+  isActive: boolean;
   location?: LonLat;
   /** Повний набір атрибутів шару (у формі редагуються саме вони). */
   attributes: Record<string, unknown>;

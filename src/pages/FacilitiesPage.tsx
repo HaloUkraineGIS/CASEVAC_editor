@@ -12,11 +12,13 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Power,
   Search,
   ShieldCheck,
   SlidersHorizontal,
   Stethoscope,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { FacilityForm } from '../components/FacilityForm';
@@ -40,6 +42,17 @@ const FacilitiesMap = lazy(() =>
   import('../components/FacilitiesMap').then((module) => ({ default: module.FacilitiesMap })),
 );
 
+/** Фільтр, який вмикається натисканням на підсумкову картку. */
+type SummaryFilter = 'all' | 'active' | 'verified' | 'visit' | 'routed';
+
+const SUMMARY_FILTER_LABELS: Record<SummaryFilter, string> = {
+  all: 'Усі заклади',
+  active: 'Активні',
+  verified: 'Перевірені',
+  visit: 'Потрібен візит',
+  routed: 'Активні маршрути',
+};
+
 function visitLabel(facility: FacilityRecord): string {
   if (isVisitStale(facility.lastVisitDate)) return 'Потрібен візит';
   return 'Перевірено';
@@ -59,6 +72,7 @@ export function FacilitiesPage() {
   const { facilities, routes, medics, facilitySchema: schema } = snapshot;
 
   const [query, setQuery] = useState('');
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
   const [viewId, setViewId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
@@ -78,16 +92,39 @@ export function FacilitiesPage() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return facilities;
-    return facilities.filter((facility) =>
+    const bySummary = facilities.filter((facility) => {
+      switch (summaryFilter) {
+        case 'active':
+          return facility.isActive;
+        case 'verified':
+          return !isVisitStale(facility.lastVisitDate);
+        case 'visit':
+          return isVisitStale(facility.lastVisitDate);
+        case 'routed':
+          return routes.some((route) => route.facilityId === facility.id);
+        default:
+          return true;
+      }
+    });
+    if (!needle) return bySummary;
+    return bySummary.filter((facility) =>
       `${facility.name} ${facility.type} ${facility.address} ${facility.departments}`
         .toLowerCase()
         .includes(needle),
     );
-  }, [facilities, query]);
+  }, [facilities, query, routes, summaryFilter]);
 
-  const activeRoutes = routes.filter((route) => route.isCurrent).length;
-  const needsVisit = facilities.filter((facility) => isVisitStale(facility.lastVisitDate)).length;
+  const activeCount = facilities.filter((facility) => facility.isActive).length;
+  const verifiedCount = facilities.filter((facility) => !isVisitStale(facility.lastVisitDate)).length;
+  const needsVisit = facilities.length - verifiedCount;
+  const routedCount = facilities.filter((facility) =>
+    routes.some((route) => route.facilityId === facility.id),
+  ).length;
+  const filterIsNarrowed = query.trim().length > 0 || summaryFilter !== 'all';
+
+  const toggleSummaryFilter = (filter: SummaryFilter) => {
+    setSummaryFilter((current) => (filter === 'all' || current === filter ? 'all' : filter));
+  };
   const viewed = facilities.find((facility) => facility.id === viewId) ?? null;
   const selected = facilities.find((facility) => facility.id === selectedId) ?? null;
   const viewedRoutes = viewed ? routes.filter((route) => route.facilityId === viewed.id) : [];
@@ -237,34 +274,51 @@ export function FacilitiesPage() {
       <SnapshotNotices />
 
       <DataStateGate>
-        <section className="summary-grid">
+        <section className="summary-grid summary-grid-5">
           <SummaryCard
             label="Усього закладів"
             value={String(facilities.length).padStart(2, '0')}
             detail="У реєстрі медичного відділу"
             tone="neutral"
             icon={<Building2 size={17} />}
+            onClick={() => setSummaryFilter('all')}
+            active={summaryFilter === 'all'}
+          />
+          <SummaryCard
+            label="Активні"
+            value={String(activeCount).padStart(2, '0')}
+            detail="Статус is_active = «так»"
+            tone="teal"
+            icon={<Power size={17} />}
+            onClick={() => toggleSummaryFilter('active')}
+            active={summaryFilter === 'active'}
           />
           <SummaryCard
             label="Перевірені"
-            value={String(facilities.length - needsVisit).padStart(2, '0')}
+            value={String(verifiedCount).padStart(2, '0')}
             detail={`Візит не давніше ${staleThreshold} міс.`}
             tone="green"
             icon={<ShieldCheck size={17} />}
+            onClick={() => toggleSummaryFilter('verified')}
+            active={summaryFilter === 'verified'}
           />
           <SummaryCard
             label="Потрібен візит"
             value={String(needsVisit).padStart(2, '0')}
-            detail="Дані слід оновити"
+            detail={`Понад ${staleThreshold} міс. без візиту`}
             tone="amber"
             icon={<CalendarDays size={17} />}
+            onClick={() => toggleSummaryFilter('visit')}
+            active={summaryFilter === 'visit'}
           />
           <SummaryCard
             label="Активні маршрути"
-            value={String(activeRoutes).padStart(2, '0')}
-            detail="Пов’язані із закладами"
+            value={String(routedCount).padStart(2, '0')}
+            detail="Заклади з маршрутами CASEVAC"
             tone="blue"
             icon={<Map size={17} />}
+            onClick={() => toggleSummaryFilter('routed')}
+            active={summaryFilter === 'routed'}
           />
         </section>
 
@@ -286,21 +340,34 @@ export function FacilitiesPage() {
             </button>
           </div>
           <div className="facility-toolbar">
-            <label className="search-field search-field-wide">
-              <Search size={16} />
-              <input
-                placeholder="Пошук за назвою, типом, адресою або відділенням"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
-            <button
-              className="icon-button filter-square"
-              onClick={() => notify('Розширені фільтри з’являться на наступному етапі.', 'info')}
-              aria-label="Фільтри"
-            >
-              <SlidersHorizontal size={17} />
-            </button>
+            <div className="facility-toolbar-main">
+              <label className="search-field search-field-wide">
+                <Search size={16} />
+                <input
+                  placeholder="Пошук за назвою, типом, адресою або відділенням"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              {summaryFilter !== 'all' && (
+                <button
+                  type="button"
+                  className="active-filter-chip"
+                  onClick={() => setSummaryFilter('all')}
+                  title="Скинути фільтр"
+                >
+                  {SUMMARY_FILTER_LABELS[summaryFilter]}
+                  <X size={12} />
+                </button>
+              )}
+              <button
+                className="icon-button filter-square"
+                onClick={() => notify('Розширені фільтри з’являться на наступному етапі.', 'info')}
+                aria-label="Фільтри"
+              >
+                <SlidersHorizontal size={17} />
+              </button>
+            </div>
           </div>
           <div className="facilities-workspace">
             <div className="facility-list">
@@ -327,6 +394,12 @@ export function FacilitiesPage() {
                           <span />
                           {visitLabel(facility)}
                         </span>
+                        {!facility.isActive && (
+                          <span className="facility-status facility-inactive">
+                            <span />
+                            Неактивний
+                          </span>
+                        )}
                       </div>
                       <div className="facility-meta">
                         <span>
@@ -375,7 +448,11 @@ export function FacilitiesPage() {
                 <div className="no-results">
                   <Search size={21} />
                   <strong>Закладів не знайдено</strong>
-                  <span>Змініть пошуковий запит.</span>
+                  <span>
+                    {summaryFilter === 'all'
+                      ? 'Змініть пошуковий запит.'
+                      : 'Змініть фільтр або пошуковий запит.'}
+                  </span>
                 </div>
               )}
             </div>
@@ -400,7 +477,7 @@ export function FacilitiesPage() {
                   facilities={filtered}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
-                  filterActive={query.trim().length > 0}
+                  filterActive={filterIsNarrowed}
                 />
               </Suspense>
               {selected ? (
