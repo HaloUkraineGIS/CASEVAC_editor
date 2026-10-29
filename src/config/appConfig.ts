@@ -107,10 +107,10 @@ export const appConfig = {
       taskId: 'task_id',
       taskCode: 'task_code',
       facilityGuid: 'med_facility_guid',
-      routeType: 'route_type',
       isCurrent: 'is_current',
       surveyedBy: 'surveyed_by',
       surveyDate: 'survey_date',
+      createdAt: 'created_date',
     },
     facilities: {
       name: 'name',

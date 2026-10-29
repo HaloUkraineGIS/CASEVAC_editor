@@ -1,5 +1,5 @@
 import { appConfig } from '../config/appConfig';
-import type { LonLat, RouteRecord, RouteType } from '../types';
+import type { LonLat, RouteRecord } from '../types';
 
 /** Поточна дата у форматі ISO (yyyy-mm-dd), локальний час. */
 export function todayIso(): string {
@@ -52,18 +52,13 @@ export function isVisitStale(
   return months === null ? true : months >= thresholdMonths;
 }
 
-export function routeTypeLabel(type: RouteType): string {
-  return type === 'main' ? 'Основний' : 'Додатковий';
-}
-
 export function routeStatusLabel(route: Pick<RouteRecord, 'isCurrent'>): string {
   return route.isCurrent ? 'Актуальний' : 'Неактуальний';
 }
 
 /** Колір маркера/лінії маршруту, що використовується в інтерфейсі. */
-export function routeColor(route: Pick<RouteRecord, 'isCurrent' | 'routeType'>): 'green' | 'blue' | 'gray' {
-  if (!route.isCurrent) return 'gray';
-  return route.routeType === 'main' ? 'green' : 'blue';
+export function routeColor(route: Pick<RouteRecord, 'isCurrent'>): 'green' | 'gray' {
+  return route.isCurrent ? 'green' : 'gray';
 }
 
 export function initials(name: string | undefined | null): string {

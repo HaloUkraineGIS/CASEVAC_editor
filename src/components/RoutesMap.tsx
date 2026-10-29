@@ -487,7 +487,7 @@ export function RoutesMap({
         const legend = new Legend({ view });
         legend.visible = legendVisibleRef.current;
         legendRef.current = legend;
-        view.ui.add(legend, 'bottom-right');
+        view.ui.add(legend, { position: 'bottom-right', index: 999 });
 
         setStatus('ready');
         focusAll();
@@ -526,6 +526,21 @@ export function RoutesMap({
   useEffect(() => {
     if (legendRef.current) legendRef.current.visible = legendVisible;
   }, [legendVisible]);
+
+  // Зумування до вибраного маршруту при зміні selectedId
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || status !== 'ready' || !selectedId) return;
+
+    const route = routesRef.current.find((r) => r.id === selectedId);
+    if (!route || route.geometry.length < 2) return;
+
+    const points = route.geometry;
+    const viewport = fitView(points, view.width, view.height);
+    if (viewport) {
+      void view.goTo(viewport);
+    }
+  }, [selectedId, status]);
 
   // Escape згортає розгорнуту карту.
   useEffect(() => {
@@ -585,7 +600,6 @@ export function RoutesMap({
               </button>
             )}
           </div>
-          {notice && status === 'ready' && <span className="facility-map-notice">{notice}</span>}
         </div>
       )}
       {status === 'loading' && (

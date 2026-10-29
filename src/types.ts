@@ -5,8 +5,6 @@ export type PageId = 'routes' | 'facilities' | 'area-plan' | 'eod-plan';
 /** [довгота, широта] — порядок, прийнятий в ArcGIS. */
 export type LonLat = [number, number];
 
-export type RouteType = 'main' | 'additional';
-
 export interface RouteRecord {
   /** globalid маршруту (у демо-режимі — локальний ідентифікатор). */
   id: string;
@@ -15,12 +13,15 @@ export interface RouteRecord {
   taskId: string;
   facilityId: string;
   facilityName: string;
-  routeType: RouteType;
   isCurrent: boolean;
   /** ПІБ медика, що обстежив маршрут. */
   surveyedBy: string;
   /** Дата обстеження, ISO (yyyy-mm-dd). */
   surveyDate: string;
+  /** Дата створення, ISO (yyyy-mm-dd). */
+  createdAt?: string;
+  /** Довжина маршруту в кілометрах. */
+  length?: number;
   geometry: LonLat[];
 }
 
@@ -136,7 +137,6 @@ export interface RouteDraft {
   taskId: string;
   code: string;
   facilityId: string;
-  routeType: RouteType;
   surveyedBy: string;
   surveyDate: string;
 }

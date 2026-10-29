@@ -100,10 +100,10 @@ export function createDemoSource(): DataSource {
         taskId: draft.taskId,
         facilityId: facility.id,
         facilityName: facility.name,
-        routeType: draft.routeType,
         isCurrent: true,
         surveyedBy: draft.surveyedBy,
         surveyDate: draft.surveyDate || todayIso(),
+        createdAt: todayIso(),
         geometry: [start, end],
       };
       snapshot.routes = [route, ...snapshot.routes];

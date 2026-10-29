@@ -214,10 +214,11 @@ function route(
   code: string,
   taskId: string,
   facilityId: string,
-  routeType: RouteRecord['routeType'],
   isCurrent: boolean,
   surveyedBy: string,
   surveyDate: string,
+  createdAt: string,
+  length: number,
   start: [number, number],
 ): RouteRecord {
   const target = facility(facilityId);
@@ -228,51 +229,22 @@ function route(
     taskId,
     facilityId,
     facilityName: target.name,
-    routeType,
     isCurrent,
     surveyedBy,
     surveyDate,
+    createdAt,
+    length,
     geometry: [start, end],
   };
 }
 
 const routes: RouteRecord[] = [
-  route('r-104', 'UA-32-00418', '418', 'f1', 'main', true, 'Олена Коваль', '2026-10-18', [30.2914, 50.4021]),
-  route(
-    'r-103',
-    'UA-32-00418',
-    '418',
-    'f2',
-    'additional',
-    true,
-    'Іван Петренко',
-    '2026-10-12',
-    [30.2914, 50.4021],
-  ),
-  route('r-098', 'UA-32-00391', '391', 'f3', 'main', true, 'Олена Коваль', '2026-10-09', [30.3305, 50.4327]),
-  route('r-087', 'UA-32-00364', '364', 'f4', 'main', false, 'Максим Бойко', '2026-09-22', [30.4221, 50.5512]),
-  route(
-    'r-095',
-    'UA-32-00391',
-    '391',
-    'f5',
-    'additional',
-    true,
-    'Наталія Гриценко',
-    '2026-10-02',
-    [30.3305, 50.4327],
-  ),
-  route(
-    'r-076',
-    'UA-32-00364',
-    '364',
-    'f3',
-    'main',
-    false,
-    'Іван Петренко',
-    '2026-08-14',
-    [30.4221, 50.5512],
-  ),
+  route('r-104', 'UA-32-00418', '418', 'f1', true, 'Олена Коваль', '2026-10-18', '2026-10-29', 12.5, [30.2914, 50.4021]),
+  route('r-103', 'UA-32-00418', '418', 'f2', true, 'Іван Петренко', '2026-10-12', '2026-10-28', 12.5, [30.2914, 50.4021]),
+  route('r-098', 'UA-32-00391', '391', 'f3', true, 'Олена Коваль', '2026-10-09', '2026-10-27', 8.3, [30.3305, 50.4327]),
+  route('r-087', 'UA-32-00364', '364', 'f4', false, 'Максим Бойко', '2026-09-22', '2026-09-22', 15.7, [30.4221, 50.5512]),
+  route('r-095', 'UA-32-00391', '391', 'f5', true, 'Наталія Гриценко', '2026-10-02', '2026-10-02', 8.3, [30.3305, 50.4327]),
+  route('r-076', 'UA-32-00364', '364', 'f3', false, 'Іван Петренко', '2026-08-14', '2026-08-14', 15.7, [30.4221, 50.5512]),
 ];
 
 const startPoints: StartPointRecord[] = routes.map((item) => ({

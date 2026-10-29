@@ -20,7 +20,6 @@ import type {
   LonLat,
   MinefieldRecord,
   RouteRecord,
-  RouteType,
   StartPointRecord,
 } from '../types';
 import {
@@ -38,10 +37,11 @@ const ROUTE_CANDIDATES: Record<string, string[]> = {
   taskId: ['task_id', 'taskid'],
   taskCode: ['task_code', 'taskcode'],
   facilityGuid: ['med_facility_guid', 'med_facility_globalid', 'facility_guid'],
-  routeType: ['route_type', 'routetype'],
   isCurrent: ['is_current', 'iscurrent', 'actual', 'is_active'],
   surveyedBy: ['surveyed_by', 'surveyedby', 'surveyed', 'created_by_medic'],
   surveyDate: ['survey_date', 'surveydate', 'last_edited_date', 'created_date'],
+  createdAt: ['created_date', 'creation_date', 'creationdate'],
+  length: ['length', 'lenth', 'route_length', 'routelength'],
 };
 
 const MINEFIELD_CANDIDATES: Record<string, string[]> = {
@@ -89,14 +89,6 @@ function toIsoDate(value: unknown): string {
     }
   }
   return '';
-}
-
-function mapRouteType(value: unknown): RouteType {
-  const raw = String(value ?? '').toLowerCase();
-  if (raw.includes('додат') || raw.includes('additional') || raw.includes('secondary') || raw === '2') {
-    return 'additional';
-  }
-  return 'main';
 }
 
 function mapIsCurrent(value: unknown): boolean {
@@ -318,10 +310,11 @@ export function createArcGisSource(token: string): DataSource {
         taskId: readText(attributes, routeFields.taskId),
         facilityId: facilityGuid,
         facilityName: facility?.name ?? 'Заклад не визначено',
-        routeType: mapRouteType(readValue(attributes, routeFields.routeType)),
         isCurrent: mapIsCurrent(readValue(attributes, routeFields.isCurrent)),
         surveyedBy: readText(attributes, routeFields.surveyedBy),
         surveyDate: toIsoDate(readValue(attributes, routeFields.surveyDate)),
+        createdAt: toIsoDate(readValue(attributes, routeFields.createdAt)),
+        length: readValue(attributes, routeFields.length) as number | undefined,
         geometry: lineFromGeometry(feature.geometry),
       };
     });

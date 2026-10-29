@@ -295,6 +295,17 @@ select:focus-visible {
   margin: 0;
   color: #20302c;
 }
+.page-heading-compact {
+  margin-bottom: 12px;
+}
+.page-heading-compact h1 {
+  font-size: 20px;
+  line-height: 1.25;
+}
+.h1-compact {
+  font-size: 20px !important;
+  line-height: 1.25 !important;
+}
 .page-heading p {
   font-size: 12px;
   color: #7b8884;
@@ -3946,6 +3957,7 @@ select:focus-visible {
   gap: 8px 12px;
   justify-content: flex-start;
   padding: 8px 15px;
+  align-items: center;
 }
 .routes-toolbar-title {
   display: flex;
@@ -3953,15 +3965,18 @@ select:focus-visible {
   gap: 2px;
   margin-right: 4px;
 }
+.routes-toolbar .list-tools {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-right: auto;
+}
 .routes-toolbar .filter-tabs {
   flex-wrap: wrap;
-}
-.routes-toolbar .list-tools {
-  margin-left: auto;
 }
 .routes-page .route-table-wrap {
   overflow: auto;
   overscroll-behavior: contain;
+  max-height: 400px;
 }
 .routes-page .route-table thead th {
   position: sticky;

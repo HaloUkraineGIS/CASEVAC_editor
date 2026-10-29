@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -23,7 +23,6 @@ import {
   formatDate,
   routeColor,
   routeStatusLabel,
-  routeTypeLabel,
   todayIso,
 } from '../lib/format';
 import type { RouteType } from '../types';
@@ -32,13 +31,11 @@ const RoutesMap = lazy(() =>
   import('../components/RoutesMap').then((module) => ({ default: module.RoutesMap })),
 );
 
-type RouteFilter = 'all' | 'current' | 'main' | 'additional';
+type RouteFilter = 'all' | 'current';
 
 const FILTERS: { id: RouteFilter; label: string }[] = [
   { id: 'all', label: 'Усі маршрути' },
   { id: 'current', label: 'Актуальні' },
-  { id: 'main', label: 'Основний' },
-  { id: 'additional', label: 'Додатковий' },
 ];
 
 /** Скільки маршрутів показуємо на сторінці; решта — скрол усередині таблиці. */
@@ -47,7 +44,6 @@ const PAGE_SIZE = 100;
 interface RouteFormState {
   taskId: string;
   facilityId: string;
-  routeType: RouteType;
   surveyedBy: string;
   surveyDate: string;
 }
@@ -55,7 +51,6 @@ interface RouteFormState {
 const emptyForm = (): RouteFormState => ({
   taskId: '',
   facilityId: '',
-  routeType: 'main',
   surveyedBy: '',
   surveyDate: todayIso(),
 });
@@ -76,21 +71,25 @@ export function RoutesPage() {
   const [draftOpen, setDraftOpen] = useState(false);
   const [form, setForm] = useState<RouteFormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return routes.filter((route) => {
-      const matchesQuery =
-        needle.length === 0 ||
-        `${route.code} ${route.facilityName} ${route.surveyedBy}`.toLowerCase().includes(needle);
-      const matchesFacility = facilityFilter === 'all' || route.facilityId === facilityFilter;
-      const matchesType =
-        filter === 'all' ||
-        (filter === 'current' && route.isCurrent) ||
-        (filter === 'main' && route.routeType === 'main') ||
-        (filter === 'additional' && route.routeType === 'additional');
-      return matchesQuery && matchesFacility && matchesType;
-    });
+    return routes
+      .filter((route) => {
+        const matchesQuery =
+          needle.length === 0 ||
+          `${route.code} ${route.facilityName} ${route.surveyedBy}`.toLowerCase().includes(needle);
+        const matchesFacility = facilityFilter === 'all' || route.facilityId === facilityFilter;
+        const matchesType = filter === 'all' || (filter === 'current' && route.isCurrent);
+        return matchesQuery && matchesFacility && matchesType;
+      })
+      .sort((a, b) => {
+        // Сортування за датою створення (найновіші першими)
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [routes, query, facilityFilter, filter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -101,6 +100,30 @@ export function RoutesPage() {
   useEffect(() => {
     setPage(1);
   }, [query, filter, facilityFilter]);
+
+  // Автоматичний перехід на наступну сторінку при скролі до кінця таблиці
+  useEffect(() => {
+    const tableWrap = tableRef.current;
+    if (!tableWrap) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = tableWrap;
+      // Якщо доскролили до кінця (з невеликим буфером 10px)
+      if (scrollTop + clientHeight >= scrollHeight - 10 && currentPage < pageCount) {
+        setPage((prev) => Math.min(prev + 1, pageCount));
+      }
+    };
+
+    tableWrap.addEventListener('scroll', handleScroll);
+    return () => tableWrap.removeEventListener('scroll', handleScroll);
+  }, [currentPage, pageCount]);
+
+  // Прокручування таблиці на початок при зміні сторінки
+  useEffect(() => {
+    if (tableRef.current) {
+      tableRef.current.scrollTop = 0;
+    }
+  }, [currentPage]);
 
   const activeRoute = filtered.find((route) => route.id === selectedId) ?? filtered[0];
   const activeFacility = facilities.find((facility) => facility.id === activeRoute?.facilityId);
@@ -134,7 +157,6 @@ export function RoutesPage() {
         taskId: minefield.taskId,
         code: minefield.taskCode,
         facilityId: form.facilityId,
-        routeType: form.routeType,
         surveyedBy: form.surveyedBy,
         surveyDate: form.surveyDate,
       });
@@ -157,9 +179,9 @@ export function RoutesPage() {
 
   return (
     <div className="page-content routes-page">
-      <section className="page-heading">
+      <section className="page-heading page-heading-compact">
         <div>
-          <h1>Маршрути CASEVAC ділянок розмінування</h1>
+          <h1 className="h1-compact">Маршрути CASEVAC ділянок розмінування</h1>
           <p>Керуйте маршрутами евакуації та пов’язаними медичними закладами.</p>
         </div>
         <div className="heading-actions">
@@ -249,7 +271,7 @@ export function RoutesPage() {
                     </div>
                     <div>
                       <div className="detail-code">{activeRoute.code}</div>
-                      <div className="detail-meta">{routeTypeLabel(activeRoute.routeType)} маршрут</div>
+                      <div className="detail-meta">Маршрут CASEVAC</div>
                     </div>
                     <span
                       className={`status-badge ${activeRoute.isCurrent ? 'status-current' : 'status-inactive'}`}
@@ -298,6 +320,12 @@ export function RoutesPage() {
                         <strong>{activeEnd ? formatCoordinatePair(activeEnd) : '—'}</strong>
                       </div>
                     </div>
+                    {activeRoute.length !== undefined && activeRoute.length !== null && (
+                      <div className="detail-route-length">
+                        <span>Довжина маршруту</span>
+                        <strong>{activeRoute.length.toFixed(1)} км</strong>
+                      </div>
+                    )}
                   </div>
                   <div className="detail-divider" />
                   <div className="export-actions">
@@ -344,19 +372,6 @@ export function RoutesPage() {
               <div className="section-title">
                 Список маршрутів <span className="list-count">{filtered.length}</span>
               </div>
-              <span className="section-subtitle">Актуальний перелік маршрутів евакуації</span>
-            </div>
-            <div className="filter-tabs">
-              {FILTERS.map((item) => (
-                <button
-                  key={item.id}
-                  className={`filter-tab ${filter === item.id ? 'selected' : ''}`}
-                  onClick={() => setFilter(item.id)}
-                >
-                  {item.label}
-                  {item.id === 'all' && <span>{routes.length}</span>}
-                </button>
-              ))}
             </div>
             <div className="list-tools">
               <label className="select-wrap">
@@ -380,14 +395,25 @@ export function RoutesPage() {
                 />
               </label>
             </div>
+            <div className="filter-tabs">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.id}
+                  className={`filter-tab ${filter === item.id ? 'selected' : ''}`}
+                  onClick={() => setFilter(item.id)}
+                >
+                  {item.label}
+                  {item.id === 'all' && <span>{routes.length}</span>}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="route-table-wrap">
+          <div className="route-table-wrap" ref={tableRef}>
             <table className="route-table">
               <thead>
                 <tr>
                   <th>МАРШРУТ</th>
                   <th>МЕДИЧНИЙ ЗАКЛАД</th>
-                  <th>ТИП</th>
                   <th>СТАТУС</th>
                   <th>ОБСТЕЖЕНО</th>
                   <th />
@@ -419,14 +445,6 @@ export function RoutesPage() {
                             'Медичний заклад'}
                         </span>
                       </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`type-badge ${route.routeType === 'main' ? 'type-primary' : 'type-secondary'}`}
-                      >
-                        <i />
-                        {routeTypeLabel(route.routeType)}
-                      </span>
                     </td>
                     <td>
                       <span
@@ -545,16 +563,6 @@ export function RoutesPage() {
                     {facility.name}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="form-label">
-              <span className="field-label">Тип маршруту</span>
-              <select
-                value={form.routeType}
-                onChange={(event) => setForm({ ...form, routeType: event.target.value as RouteType })}
-              >
-                <option value="main">Основний</option>
-                <option value="additional">Додатковий</option>
               </select>
             </label>
             <label className="form-label">
