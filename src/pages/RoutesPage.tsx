@@ -1,13 +1,12 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   ArrowRight,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   FileText,
   Hospital,
-  Layers3,
   Map,
   MapPin,
   MoreHorizontal,
@@ -17,19 +16,21 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { DataStateGate, PageFooter, SnapshotNotices } from '../components/PageFooter';
-import { SummaryCard } from '../components/SummaryCard';
 import { useToast } from '../components/ToastContext';
 import { useData } from '../data/DataContext';
 import {
   formatCoordinatePair,
   formatDate,
-  formatCoordinates,
   routeColor,
   routeStatusLabel,
   routeTypeLabel,
   todayIso,
 } from '../lib/format';
 import type { RouteType } from '../types';
+
+const RoutesMap = lazy(() =>
+  import('../components/RoutesMap').then((module) => ({ default: module.RoutesMap })),
+);
 
 type RouteFilter = 'all' | 'current' | 'main' | 'additional';
 
@@ -39,6 +40,9 @@ const FILTERS: { id: RouteFilter; label: string }[] = [
   { id: 'main', label: 'Основний' },
   { id: 'additional', label: 'Додатковий' },
 ];
+
+/** Скільки маршрутів показуємо на сторінці; решта — скрол усередині таблиці. */
+const PAGE_SIZE = 100;
 
 interface RouteFormState {
   taskId: string;
@@ -67,6 +71,8 @@ export function RoutesPage() {
   const [filter, setFilter] = useState<RouteFilter>('all');
   const [facilityFilter, setFacilityFilter] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [form, setForm] = useState<RouteFormState>(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -87,10 +93,29 @@ export function RoutesPage() {
     });
   }, [routes, query, facilityFilter, filter]);
 
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageRoutes = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Будь-яка зміна фільтрів повертає таблицю на першу сторінку.
+  useEffect(() => {
+    setPage(1);
+  }, [query, filter, facilityFilter]);
+
   const activeRoute = filtered.find((route) => route.id === selectedId) ?? filtered[0];
   const activeFacility = facilities.find((facility) => facility.id === activeRoute?.facilityId);
   const activeStart = activeRoute?.geometry[0];
   const activeEnd = activeRoute?.geometry[activeRoute.geometry.length - 1];
+
+  const goToPage = (next: number) => {
+    setPage(Math.min(Math.max(next, 1), pageCount));
+  };
+
+  const selectRoute = (id: string) => {
+    setSelectedId(id);
+    const index = filtered.findIndex((route) => route.id === id);
+    if (index >= 0) setPage(Math.floor(index / PAGE_SIZE) + 1);
+  };
 
   const openDraft = () => {
     setForm(emptyForm());
@@ -127,25 +152,17 @@ export function RoutesPage() {
     ? 'Створити маршрут'
     : 'Створення маршрутів у режимі Portal буде доступне після підключення геометрії (етап 4).';
 
+  const firstShown = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const lastShown = Math.min(currentPage * PAGE_SIZE, filtered.length);
+
   return (
-    <div className="page-content">
+    <div className="page-content routes-page">
       <section className="page-heading">
         <div>
-          <div className="eyebrow">
-            <span className="eyebrow-line" />
-            ПЛАНУВАННЯ ЕВАКУАЦІЇ
-          </div>
           <h1>Маршрути CASEVAC ділянок розмінування</h1>
           <p>Керуйте маршрутами евакуації та пов’язаними медичними закладами.</p>
         </div>
         <div className="heading-actions">
-          <button
-            className="button button-secondary"
-            onClick={() => notify('Керування шарами WebMap з’явиться на етапі 3.')}
-          >
-            <Layers3 size={17} />
-            Шари
-          </button>
           <button
             className="button button-primary"
             onClick={openDraft}
@@ -158,42 +175,11 @@ export function RoutesPage() {
         </div>
       </section>
 
-      <SnapshotNotices />
+      <SnapshotNotices floating />
 
       <DataStateGate>
-        <section className="summary-grid">
-          <SummaryCard
-            label="Усього маршрутів"
-            value={String(routes.length).padStart(2, '0')}
-            detail="У базі маршрутів"
-            tone="neutral"
-            icon={<Map size={17} />}
-          />
-          <SummaryCard
-            label="Актуальні маршрути"
-            value={String(routes.filter((route) => route.isCurrent).length).padStart(2, '0')}
-            detail="Доступні для використання"
-            tone="green"
-            icon={<Activity size={17} />}
-          />
-          <SummaryCard
-            label="Основні маршрути"
-            value={String(routes.filter((route) => route.routeType === 'main').length).padStart(2, '0')}
-            detail="Основний напрямок евакуації"
-            tone="blue"
-            icon={<ArrowRight size={17} />}
-          />
-          <SummaryCard
-            label="Потрібна перевірка"
-            value={String(routes.filter((route) => !route.isCurrent).length).padStart(2, '0')}
-            detail="Неактуальні або на перегляді"
-            tone="amber"
-            icon={<CalendarDays size={17} />}
-          />
-        </section>
-
-        <section className="workspace-grid">
-          <div className="map-panel panel">
+        <section className="workspace-grid routes-workspace">
+          <div className="map-panel panel routes-map-panel">
             <div className="panel-heading">
               <div>
                 <div className="section-title">
@@ -201,96 +187,36 @@ export function RoutesPage() {
                   Карта маршрутів
                 </div>
                 <span className="section-subtitle">
-                  {source?.kind === 'arcgis'
-                    ? 'Схематичний перегляд · WebMap підключається на етапі 3'
-                    : 'Київська область · попередній перегляд'}
+                  Заклади · маршрути · мінні поля · полігони обстежень · лінія фронту
                 </span>
               </div>
-              <button
-                className="icon-button"
-                onClick={() => notify('Налаштування карти з’являться після підключення WebMap.')}
-                aria-label="Налаштування карти"
-              >
-                <SlidersHorizontal size={18} />
-              </button>
             </div>
-            <div className="map-stage">
-              <div className="map-top-controls">
-                <div className="map-layer-chip">
-                  <span className="layer-dot layer-green" />
-                  Маршрути
-                  <span className="layer-dot layer-orange" />
-                  Мінні поля
-                </div>
-                <button
-                  className="map-control-button"
-                  onClick={() => notify('Підкладку буде отримано з WebMap.')}
-                >
-                  <Layers3 size={15} />
-                  Підкладка
-                </button>
-              </div>
-              <div className="map-art">
-                <div className="map-grid-lines" />
-                <svg className="map-rivers" viewBox="0 0 900 520" preserveAspectRatio="none">
-                  <path d="M-20 96 C125 164 118 219 250 230 S360 172 434 190 535 287 613 266 723 168 920 228" />
-                  <path d="M254 -20 C322 71 271 126 333 180 S481 241 477 330 421 431 485 540" />
-                  <path d="M-10 389 C110 340 174 360 215 408 S312 456 390 410 554 341 662 377 791 457 919 411" />
-                </svg>
-                <div className="terrain terrain-one" />
-                <div className="terrain terrain-two" />
-                <div className="terrain terrain-three" />
-                <div className="road road-one" />
-                <div className="road road-two" />
-                <div className="road road-three" />
-                <div className="road road-four" />
-                <div className="road road-five" />
-                <span className="map-town town-one">ІРПІНЬ</span>
-                <span className="map-town town-two">БУЧА</span>
-                <span className="map-town town-three">КИЇВ</span>
-                <span className="map-town town-four">ГОСТОМЕЛЬ</span>
-                <span className="map-town town-five">ВИШГОРОД</span>
-                {filtered.slice(0, 4).map((route, index) => (
-                  <div
-                    key={route.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedId(route.id)}
-                    className={`map-route route-line-${index + 1} ${routeColor(route)}`}
-                  />
-                ))}
-                {filtered.slice(0, 4).map((route, index) => (
-                  <div
-                    key={`${route.id}-pin`}
-                    className={`map-pin ${index % 2 ? 'hospital-pin' : 'mine-pin'} mine-${index + 1}`}
-                  >
-                    <span>{index % 2 ? <Hospital size={12} /> : <Activity size={11} />}</span>
+            <div className="routes-map-stage">
+              {mapExpanded && (
+                <div
+                  className="routes-map-backdrop"
+                  onClick={() => setMapExpanded(false)}
+                  aria-hidden="true"
+                />
+              )}
+              <Suspense
+                fallback={
+                  <div className="facility-map-skeleton">
+                    <span className="spin" />
+                    Завантажуємо карту…
                   </div>
-                ))}
-                <div className="map-scale">
-                  <span />
-                  10 км
-                </div>
-                <div className="map-north">
-                  N<span>▲</span>
-                </div>
-                <div className="map-attribution">
-                  {source?.kind === 'arcgis'
-                    ? 'Схематична карта · дані Portal'
-                    : 'Схематична підкладка · демо-дані'}
-                </div>
-              </div>
-              <div className="map-footer">
-                <div className="map-coordinate">
-                  <MapPin size={14} />
-                  <span>{activeStart ? 'Початок маршруту' : 'Координати курсора'}</span>
-                  <strong>{activeStart ? formatCoordinates(activeStart) : '—'}</strong>
-                </div>
-                <span className="map-preview-badge">
-                  <span className="status-dot" />
-                  {source?.kind === 'arcgis' ? 'Дані Portal' : 'Демо-перегляд'}
-                </span>
-              </div>
+                }
+              >
+                <RoutesMap
+                  routes={filtered}
+                  facilities={facilities}
+                  minefields={minefields}
+                  selectedId={activeRoute?.id ?? null}
+                  onSelect={selectRoute}
+                  expanded={mapExpanded}
+                  onToggleExpand={() => setMapExpanded((expanded) => !expanded)}
+                />
+              </Suspense>
             </div>
           </div>
 
@@ -304,10 +230,16 @@ export function RoutesPage() {
                   </div>
                   <button
                     className="icon-button"
-                    aria-label="Ще"
-                    onClick={() => notify('Додаткові дії будуть доступні після інтеграції редагування.')}
+                    aria-label="Редагувати маршрут"
+                    title="Редагувати маршрут"
+                    onClick={() =>
+                      notify(
+                        'Редагування геометрії потребує підключення Sketch та Feature Service (етап 4).',
+                        'info',
+                      )
+                    }
                   >
-                    <MoreHorizontal size={19} />
+                    <SlidersHorizontal size={17} />
                   </button>
                 </div>
                 <div className="route-detail-body">
@@ -355,34 +287,16 @@ export function RoutesPage() {
                   </div>
                   <div className="detail-field">
                     <span className="detail-label">НАПРЯМОК ЕВАКУАЦІЇ</span>
-                    <div className="route-direction">
+                    <div className="detail-coordinates">
                       <div>
-                        <span className="direction-point mine-point">
-                          <Activity size={13} />
-                        </span>
-                        <span>Мінне поле</span>
+                        <span>МІННЕ ПОЛЕ · ПОЧАТОК</span>
+                        <strong>{activeStart ? formatCoordinatePair(activeStart) : '—'}</strong>
                       </div>
-                      <div className="direction-track">
-                        <span />
-                        <ArrowRight size={14} />
-                      </div>
+                      <ArrowRight size={14} />
                       <div>
-                        <span className="direction-point hospital-point">
-                          <Hospital size={13} />
-                        </span>
-                        <span>Медзаклад</span>
+                        <span>МЕДЗАКЛАД · КІНЕЦЬ</span>
+                        <strong>{activeEnd ? formatCoordinatePair(activeEnd) : '—'}</strong>
                       </div>
-                    </div>
-                  </div>
-                  <div className="detail-coordinates">
-                    <div>
-                      <span>ПОЧАТОК</span>
-                      <strong>{activeStart ? formatCoordinatePair(activeStart) : '—'}</strong>
-                    </div>
-                    <ArrowRight size={14} />
-                    <div>
-                      <span>КІНЕЦЬ</span>
-                      <strong>{activeEnd ? formatCoordinatePair(activeEnd) : '—'}</strong>
                     </div>
                   </div>
                   <div className="detail-divider" />
@@ -396,9 +310,7 @@ export function RoutesPage() {
                       </span>
                       <span>
                         <strong>Створити карту</strong>
-                        <small>Зберегти маршрут як JPG</small>
                       </span>
-                      <ArrowRight size={16} />
                     </button>
                     <button
                       className="export-card"
@@ -410,24 +322,10 @@ export function RoutesPage() {
                         <FileText size={17} />
                       </span>
                       <span>
-                        <strong>Експортувати План реагування</strong>
-                        <small>Завантажити документ Word</small>
+                        <strong>План реагування</strong>
                       </span>
-                      <ArrowRight size={16} />
                     </button>
                   </div>
-                  <button
-                    className="edit-route-button"
-                    onClick={() =>
-                      notify(
-                        'Редагування геометрії потребує підключення Sketch та Feature Service (етап 4).',
-                        'info',
-                      )
-                    }
-                  >
-                    <SlidersHorizontal size={16} />
-                    Редагувати маршрут
-                  </button>
                 </div>
               </>
             ) : (
@@ -441,23 +339,13 @@ export function RoutesPage() {
         </section>
 
         <section className="routes-list-panel panel">
-          <div className="list-header">
-            <div>
+          <div className="list-toolbar routes-toolbar">
+            <div className="routes-toolbar-title">
               <div className="section-title">
                 Список маршрутів <span className="list-count">{filtered.length}</span>
               </div>
               <span className="section-subtitle">Актуальний перелік маршрутів евакуації</span>
             </div>
-            <button
-              className="button button-quiet"
-              onClick={() => notify('Розширені фільтри буде додано пізніше.', 'info')}
-            >
-              <SlidersHorizontal size={15} />
-              Фільтри
-              <ChevronDown size={14} />
-            </button>
-          </div>
-          <div className="list-toolbar">
             <div className="filter-tabs">
               {FILTERS.map((item) => (
                 <button
@@ -506,7 +394,7 @@ export function RoutesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((route) => (
+                {pageRoutes.map((route) => (
                   <tr
                     key={route.id}
                     className={activeRoute?.id === route.id ? 'row-selected' : ''}
@@ -580,11 +468,36 @@ export function RoutesPage() {
           </div>
           <div className="table-footer">
             <span>
-              Показано <strong>{filtered.length}</strong> із <strong>{routes.length}</strong> маршрутів
+              Показано <strong>{firstShown}–{lastShown}</strong> із <strong>{filtered.length}</strong> маршрутів
             </span>
-            <span>
-              {source?.kind === 'arcgis' ? 'Дані Portal · лише читання' : 'Чернетка інтерфейсу · демо-дані'}
-            </span>
+            <div className="pagination">
+              <button
+                className="icon-button"
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage <= 1}
+                aria-label="Попередня сторінка"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              {Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => (
+                <button
+                  key={number}
+                  className={`page-number ${number === currentPage ? 'active-page' : ''}`}
+                  onClick={() => goToPage(number)}
+                  aria-label={`Сторінка ${number}`}
+                >
+                  {number}
+                </button>
+              ))}
+              <button
+                className="icon-button"
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage >= pageCount}
+                aria-label="Наступна сторінка"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
           </div>
         </section>
 

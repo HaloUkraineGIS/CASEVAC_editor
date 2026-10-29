@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Info, X } from 'lucide-react';
 import { appConfig } from '../config/appConfig';
 import { useAuth } from '../auth/AuthContext';
 import { useData } from '../data/DataContext';
@@ -21,14 +22,47 @@ export function PageFooter({ note }: { note: string }) {
   );
 }
 
-export function SnapshotNotices() {
+/**
+ * Повідомлення знімка даних. У звичайному режимі — рядок у потоці сторінки,
+ * у плаваючому (`floating`) — вікно поверх інтерфейсу з кнопкою закриття.
+ */
+export function SnapshotNotices({ floating = false }: { floating?: boolean }) {
   const { snapshot } = useData();
-  if (snapshot.notices.length === 0) return null;
+  const [dismissed, setDismissed] = useState<string[]>([]);
+
+  const visible = snapshot.notices.filter((notice) => !dismissed.includes(notice));
+  if (visible.length === 0) return null;
+
+  if (!floating) {
+    return (
+      <div className="data-notice" role="status">
+        {visible.map((notice) => (
+          <span key={notice}>{notice}</span>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="data-notice" role="status">
-      {snapshot.notices.map((notice) => (
-        <span key={notice}>{notice}</span>
-      ))}
+    <div className="data-notice data-notice-floating" role="status" aria-live="polite">
+      <div className="data-notice-head">
+        <Info size={15} />
+        <strong>Повідомлення</strong>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Закрити повідомлення"
+          title="Закрити"
+          onClick={() => setDismissed(snapshot.notices)}
+        >
+          <X size={15} />
+        </button>
+      </div>
+      <div className="data-notice-body">
+        {visible.map((notice) => (
+          <span key={notice}>{notice}</span>
+        ))}
+      </div>
     </div>
   );
 }

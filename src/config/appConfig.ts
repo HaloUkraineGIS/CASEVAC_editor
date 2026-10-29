@@ -27,7 +27,7 @@ function defaultRedirectUri(): string {
 }
 
 export const appConfig = {
-  version: '0.2.13',
+  version: '0.3.0',
 
   /**
    * 'demo'  — локальні демонстраційні дані, вхід не потрібен (типово для розробки);
@@ -61,6 +61,21 @@ export const appConfig = {
       title: 'Medical facilities',
       url: 'https://gis-services.htgoims.org/arcgis/rest/services/ukraine/ukr_CASEVAC_routes_medical_facilities/FeatureServer/0',
       editable: true,
+    },
+    surveyPolygons: {
+      title: 'Survey polygons',
+      url: 'https://gis-services.htgoims.org/arcgis/rest/services/ukraine/ukr_gis_survey_polygons/MapServer',
+      editable: false,
+    },
+    cbSurveyPolygons: {
+      title: 'CB survey polygons',
+      url: 'https://gis-services.htgoims.org/arcgis/rest/services/ukraine/ukr_confidence_building_survey_polygons/MapServer',
+      editable: false,
+    },
+    frontline: {
+      title: 'Frontline',
+      url: 'https://gis.htgoims.org/server/rest/services/Hosted/isw/FeatureServer/0',
+      editable: false,
     },
     startPoints: {
       title: 'Start evac point',
