@@ -243,7 +243,6 @@ export function RoutesMap({
   const [legendVisible, setLegendVisible] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
-  const [notice, setNotice] = useState('');
 
   routesRef.current = routes;
   facilitiesRef.current = facilities;
@@ -385,7 +384,6 @@ export function RoutesMap({
     const startDemo = () => {
       if (cancelled || !containerRef.current) return;
       modeRef.current = 'demo';
-      setNotice('Демо-режим: маршрути, заклади й мінні поля з демо-даних.');
       const map = new Map({ basemap: createBasemap(basemapKeyRef.current) });
       const fallback = new GraphicsLayer({ title: 'Демо-дані', listMode: 'hide' });
       map.add(fallback);

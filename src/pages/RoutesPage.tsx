@@ -25,7 +25,6 @@ import {
   routeStatusLabel,
   todayIso,
 } from '../lib/format';
-import type { RouteType } from '../types';
 
 const RoutesMap = lazy(() =>
   import('../components/RoutesMap').then((module) => ({ default: module.RoutesMap })),
