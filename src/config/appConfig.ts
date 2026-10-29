@@ -46,6 +46,9 @@ export const appConfig = {
 
   webMapId: env.VITE_WEBMAP_ID ?? DEFAULT_WEBMAP_ID,
 
+  /** ID елемента шаблону Word у Portal (null — завантажувати локально). */
+  templateItemId: env.VITE_TEMPLATE_ITEM_ID ?? null,
+
   services: {
     minefields: {
       title: 'task Minefield BAC CB',

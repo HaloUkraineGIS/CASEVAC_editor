@@ -18,6 +18,8 @@ import { Modal } from '../components/Modal';
 import { DataStateGate, PageFooter, SnapshotNotices } from '../components/PageFooter';
 import { useToast } from '../components/ToastContext';
 import { useData } from '../data/DataContext';
+import { useAuth } from '../auth/AuthContext';
+import { appConfig } from '../config/appConfig';
 import {
   formatCoordinatePair,
   formatDate,
@@ -25,6 +27,7 @@ import {
   routeStatusLabel,
   todayIso,
 } from '../lib/format';
+import { exportResponsePlan } from '../lib/docxExport';
 
 const RoutesMap = lazy(() =>
   import('../components/RoutesMap').then((module) => ({ default: module.RoutesMap })),
@@ -57,6 +60,7 @@ const emptyForm = (): RouteFormState => ({
 export function RoutesPage() {
   const { snapshot, source, createRoute } = useData();
   const { notify } = useToast();
+  const { session } = useAuth();
 
   const { routes, facilities, minefields, medics } = snapshot;
   const canCreate = source?.capabilities.createRoute === true;
@@ -166,6 +170,50 @@ export function RoutesPage() {
       notify(cause instanceof Error ? cause.message : 'Не вдалося створити маршрут', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExportPlan = async () => {
+    if (!activeRoute) return;
+
+    const minefield = minefields.find((item) => item.taskId === activeRoute.taskId);
+    const facility = facilities.find((item) => item.id === activeRoute.facilityId);
+
+    if (!minefield) {
+      notify('Не знайдено мінне поле для маршруту', 'error');
+      return;
+    }
+
+    if (!facility) {
+      notify('Не знайдено медичний заклад для маршруту', 'error');
+      return;
+    }
+
+    try {
+      notify('Генерація документу...', 'info');
+
+      // Якщо є templateItemId у Portal-режимі, завантажуємо з Portal
+      if (appConfig.authMode === 'portal' && appConfig.templateItemId && session?.token) {
+        await exportResponsePlan(activeRoute, minefield, minefield.attributes, facility, {
+          portalUrl: appConfig.portalUrl,
+          templateItemId: appConfig.templateItemId,
+          token: session.token,
+        });
+      } else {
+        // Інакше використовуємо локальний шаблон (враховуємо базовий шлях Vite)
+        const basePath = import.meta.env.BASE_URL || '/';
+        await exportResponsePlan(activeRoute, minefield, minefield.attributes, facility, {
+          templatePath: `${basePath}template/task_accident-response-plan.docx`,
+        });
+      }
+
+      notify(`План реагування ${activeRoute.code} завантажено`, 'success');
+    } catch (error) {
+      console.error('Помилка експорту документу:', error);
+      notify(
+        error instanceof Error ? error.message : 'Не вдалося згенерувати документ',
+        'error',
+      );
     }
   };
 
@@ -341,9 +389,7 @@ export function RoutesPage() {
                     </button>
                     <button
                       className="export-card"
-                      onClick={() =>
-                        notify(`Експорт Плану реагування для ${activeRoute.code} — етап 6 плану.`)
-                      }
+                      onClick={handleExportPlan}
                     >
                       <span className="export-icon export-doc">
                         <FileText size={17} />

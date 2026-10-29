@@ -330,6 +330,7 @@ export function createArcGisSource(token: string): DataSource {
       taskCode: readText(feature.attributes, minefieldFields.taskCode),
       name: readText(feature.attributes, minefieldFields.name),
       location: pointFromGeometry(feature.geometry),
+      attributes: feature.attributes,
     }));
 
     const startPoints: StartPointRecord[] = [];

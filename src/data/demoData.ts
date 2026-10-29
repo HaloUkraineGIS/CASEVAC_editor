@@ -179,6 +179,16 @@ const minefields: MinefieldRecord[] = [
     taskCode: 'UA-32-00418',
     name: 'Ділянка біля Ірпеня',
     location: [30.2914, 50.4021],
+    attributes: {
+      task_id: '418',
+      task_code: 'UA-32-00418',
+      task_name_ukr: 'Ділянка біля Ірпеня',
+      oblast_ukr: 'Київська',
+      rayon_ukr: 'Бучанський',
+      council_ukr: 'Ірпінська міська',
+      locality_ukr: 'Ірпінь',
+      imsma_hazard_code: 'SHA-001',
+    },
   },
   {
     id: 'mf-391',
@@ -186,6 +196,16 @@ const minefields: MinefieldRecord[] = [
     taskCode: 'UA-32-00391',
     name: 'Ділянка біля Гостомеля',
     location: [30.3305, 50.4327],
+    attributes: {
+      task_id: '391',
+      task_code: 'UA-32-00391',
+      task_name_ukr: 'Ділянка біля Гостомеля',
+      oblast_ukr: 'Київська',
+      rayon_ukr: 'Бучанський',
+      council_ukr: 'Гостомельська селищна',
+      locality_ukr: 'Гостомель',
+      imsma_hazard_code: 'SHA-002',
+    },
   },
   {
     id: 'mf-364',
@@ -193,6 +213,16 @@ const minefields: MinefieldRecord[] = [
     taskCode: 'UA-32-00364',
     name: 'Ділянка біля Вишгорода',
     location: [30.4221, 50.5512],
+    attributes: {
+      task_id: '364',
+      task_code: 'UA-32-00364',
+      task_name_ukr: 'Ділянка біля Вишгорода',
+      oblast_ukr: 'Київська',
+      rayon_ukr: 'Вишгородський',
+      council_ukr: 'Вишгородська міська',
+      locality_ukr: 'Вишгород',
+      imsma_hazard_code: 'SHA-003',
+    },
   },
   {
     id: 'mf-ch-134',
@@ -200,6 +230,16 @@ const minefields: MinefieldRecord[] = [
     taskCode: 'HT_CH_134',
     name: 'Ділянка біля Грабівки',
     location: [31.1142, 51.4288],
+    attributes: {
+      task_id: '134',
+      task_code: 'HT_CH_134',
+      task_name_ukr: 'Ділянка біля Грабівки',
+      oblast_ukr: 'Чернігівська',
+      rayon_ukr: 'Ніжинський',
+      council_ukr: 'Носівська міська',
+      locality_ukr: 'Грабівка',
+      imsma_hazard_code: 'SHA-134',
+    },
   },
 ];
 

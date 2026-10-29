@@ -50,6 +50,8 @@ export interface MinefieldRecord {
   taskCode: string;
   name: string;
   location?: LonLat;
+  /** Повний набір атрибутів шару (для експорту документу). */
+  attributes: Record<string, unknown>;
 }
 
 export interface StartPointRecord {
