@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Застосунок відкриється на `http://localhost:5173/`. Типово він працює в **демо-режимі**: локальні демонстраційні дані, вхід не потрібен.
+Застосунок відкриється на `http://localhost:5173/CASEVAC_editor/` (шлях заданий `base` у `vite.config.ts`; корінь `http://localhost:5173/` перенаправляє туди). Типово він працює в **демо-режимі**: локальні демонстраційні дані, вхід не потрібен.
 
 ## Режими роботи
 
@@ -32,7 +32,7 @@ npm run dev
 VITE_AUTH_MODE=portal
 VITE_PORTAL_URL=https://gis.htgoims.org/portal
 VITE_OAUTH_CLIENT_ID=UkLjSBHNNooE1jnb
-VITE_OAUTH_REDIRECT_URI=http://localhost:5173
+VITE_OAUTH_REDIRECT_URI=http://localhost:5173/CASEVAC_editor/
 VITE_WEBMAP_ID=f5c528f766ec467c9d7388787bc58698
 ```
 
@@ -40,12 +40,25 @@ VITE_WEBMAP_ID=f5c528f766ec467c9d7388787bc58698
 
 ## Налаштування Portal (передумова режиму `portal`)
 
-1. Додати Redirect URI у налаштуваннях OAuth-застосунку `UkLjSBHNNooE1jnb`:
-   - `http://localhost:5173`
+1. Додати Redirect URI у налаштуваннях OAuth-застосунку `UkLjSBHNNooE1jnb`
+   (значення має точно збігатися з `VITE_OAUTH_REDIRECT_URI`, включно зі слешем):
+   - `http://localhost:5173/CASEVAC_editor/`
    - `https://<org>.github.io/<repo>/`
 2. Дозволити ці origin-адреси в CORS на ArcGIS Server/Portal.
 3. Додати `gis-services.htgoims.org` і `gis.htgoims.org` у Trusted Servers Portal.
 4. Переконатися, що шари початкових точок доступні як FeatureServer (зараз MapServer — запис неможливий).
+
+### Якщо вхід не працює
+
+- **Сторінка Portal відкривається як сирий HTML, у консолі `SyntaxError: JSON.parse: unexpected character…`.**
+  Причина — параметр `f=json` в адресі `oauth2/authorize`: Portal віддає сторінку входу з
+  `Content-Type: application/json`, і браузер показує її текстом. У `buildAuthorizeUrl`
+  (`src/auth/pkce.ts`) цей параметр передавати не можна.
+- **`Invalid redirect_uri` або після входу повертає на порожню сторінку.**
+  `VITE_OAUTH_REDIRECT_URI` має точно (включно зі слешем і шляхом `base`) збігатися з
+  Redirect URI, зареєстрованим у Portal.
+- **`Portal повернув HTML-сторінку замість JSON`.** Сесія Portal завершилася або REST API
+  перекритий проксі; увійдіть повторно й перевірте CORS/Trusted Servers.
 
 ## Скрипти
 

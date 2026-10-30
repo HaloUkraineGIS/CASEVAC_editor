@@ -1,5 +1,7 @@
 /** Запити до ArcGIS Portal REST API від імені користувача. */
 
+import { readPortalJson } from './httpJson';
+
 export interface PortalUser {
   username: string;
   fullName: string;
@@ -30,7 +32,7 @@ export async function fetchPortalUser(portalUrl: string, token: string): Promise
     throw new Error(`Portal повернув HTTP ${response.status}`);
   }
 
-  const payload = (await response.json()) as RawPortalSelf;
+  const payload = await readPortalJson<RawPortalSelf>(response, 'Отримання користувача Portal');
   if (payload.error) {
     throw new Error(payload.error.message ?? 'Не вдалося отримати дані користувача Portal');
   }

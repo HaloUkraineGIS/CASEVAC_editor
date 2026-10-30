@@ -61,13 +61,13 @@ export interface FacilityTemplateData {
   blood_products_available: string;
   oxygen: string;
   generator: string;
+  military_medic_group: string;
 }
 
 /** Повний набір даних для заповнення шаблону. */
 export interface TemplateData extends MinefieldTemplateData, FacilityTemplateData {
   current_year: string;
   created_by_medic: string;
-  military_medic_group: string;
 }
 
 /**

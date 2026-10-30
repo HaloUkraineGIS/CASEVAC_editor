@@ -20,6 +20,10 @@ dist-ssr/
 *.swo
 *~
 
+# Тимчасові файли експорту та lock-файли Microsoft Office
+/temp_*
+~$*
+
 # OS
 .DS_Store
 Thumbs.db

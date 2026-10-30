@@ -5,6 +5,8 @@
  * на час входу. Токен доступу зберігається в sessionStorage (FR-2).
  */
 
+import { readPortalJson } from './httpJson';
+
 export interface PkcePair {
   verifier: string;
   challenge: string;
@@ -49,7 +51,9 @@ export function buildAuthorizeUrl(params: AuthorizeParams): string {
   url.searchParams.set('state', params.state);
   url.searchParams.set('expiration', String(params.expirationMinutes));
   url.searchParams.set('locale', 'uk');
-  url.searchParams.set('f', 'json');
+  // `f=json` тут навмисно НЕ передається: з ним Portal віддає сторінку входу
+  // з Content-Type: application/json, і браузер показує сирий HTML замість
+  // форми входу (а Firefox додатково логує помилку JSON.parse).
   return url.toString();
 }
 
@@ -103,7 +107,7 @@ export async function exchangeCodeForToken(params: ExchangeParams): Promise<Toke
     throw new Error(`Portal повернув HTTP ${response.status}`);
   }
 
-  const payload = (await response.json()) as RawTokenResponse;
+  const payload = await readPortalJson<RawTokenResponse>(response, 'Обмін коду на токен');
   if (!payload.access_token) {
     throw new Error(describeOauthError(payload));
   }
