@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+
 import {
   ArrowRight,
   CalendarDays,
@@ -28,6 +29,11 @@ import {
   todayIso,
 } from '../lib/format';
 import { exportResponsePlan } from '../lib/docxExport';
+
+// Ліниво завантажуємо модальне вікно карти, щоб не тягнути ArcGIS-чанк у головний бандл
+const RouteMapExportModal = lazy(() =>
+  import('../components/RouteMapExportModal').then((m) => ({ default: m.RouteMapExportModal })),
+);
 
 const RoutesMap = lazy(() =>
   import('../components/RoutesMap').then((module) => ({ default: module.RoutesMap })),
@@ -72,6 +78,7 @@ export function RoutesPage() {
   const [page, setPage] = useState(1);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
+  const [mapExportOpen, setMapExportOpen] = useState(false);
   const [form, setForm] = useState<RouteFormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -255,9 +262,6 @@ export function RoutesPage() {
                   <MapPin size={17} />
                   Карта маршрутів
                 </div>
-                <span className="section-subtitle">
-                  Заклади · маршрути · мінні поля · полігони обстежень · лінія фронту
-                </span>
               </div>
             </div>
             <div className="routes-map-stage">
@@ -361,24 +365,25 @@ export function RoutesPage() {
                         <span>МІННЕ ПОЛЕ · ПОЧАТОК</span>
                         <strong>{activeStart ? formatCoordinatePair(activeStart) : '—'}</strong>
                       </div>
-                      <ArrowRight size={14} />
+                      <div className="detail-direction">
+                        <ArrowRight size={14} />
+                        {activeRoute.length !== undefined && activeRoute.length !== null && (
+                          <span>{activeRoute.length.toFixed(1)} км</span>
+                        )}
+                      </div>
                       <div>
                         <span>МЕДЗАКЛАД · КІНЕЦЬ</span>
                         <strong>{activeEnd ? formatCoordinatePair(activeEnd) : '—'}</strong>
                       </div>
                     </div>
-                    {activeRoute.length !== undefined && activeRoute.length !== null && (
-                      <div className="detail-route-length">
-                        <span>Довжина маршруту</span>
-                        <strong>{activeRoute.length.toFixed(1)} км</strong>
-                      </div>
-                    )}
                   </div>
-                  <div className="detail-divider" />
+                </div>
+                {/* Кнопки експорту — поза прокручуваним тілом, щоб не зникали у вузькому вікні. */}
+                <div className="route-detail-footer">
                   <div className="export-actions">
                     <button
                       className="export-card"
-                      onClick={() => notify(`Експорт карти ${activeRoute.code} у JPG — етап 5 плану.`)}
+                      onClick={() => setMapExportOpen(true)}
                     >
                       <span className="export-icon export-map">
                         <Map size={17} />
@@ -565,6 +570,17 @@ export function RoutesPage() {
         </section>
 
         <PageFooter note="Огляд маршрутів" />
+
+        {mapExportOpen && activeRoute && (
+          <Suspense fallback={null}>
+            <RouteMapExportModal
+              route={activeRoute}
+              facility={activeFacility}
+              minefield={minefields.find((item) => item.taskId === activeRoute.taskId)}
+              onClose={() => setMapExportOpen(false)}
+            />
+          </Suspense>
+        )}
 
         {draftOpen && (
           <Modal

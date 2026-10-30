@@ -1070,8 +1070,9 @@ select:focus-visible {
 }
 .detail-coordinates {
   display: grid;
-  grid-template-columns: 1fr 20px 1fr;
+  grid-template-columns: 1fr minmax(54px, auto) 1fr;
   align-items: center;
+  column-gap: 6px;
   background: #f8faf9;
   border: 1px solid #edf1ef;
   border-radius: 6px;
@@ -1082,8 +1083,21 @@ select:focus-visible {
   flex-direction: column;
   gap: 4px;
 }
-.detail-coordinates > svg {
+.detail-direction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 5px;
   color: #a1ada7;
+}
+.detail-coordinates .detail-direction span {
+  font-size: 8.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 600;
+  color: #66766f;
+  white-space: nowrap;
 }
 .detail-coordinates span {
   font-size: 7px;
@@ -3176,7 +3190,7 @@ select:focus-visible {
 }
 
 /* =========================================================
-   ??????? ???????: ????????? ?????, ?????, ????????
+   Широкі модальні вікна: форма закладу, карта, довідники
    ========================================================= */
 .modal-card-wide {
   width: min(100%, 960px);
@@ -4124,6 +4138,12 @@ select:focus-visible {
 .routes-page .detail-coordinates strong {
   font-size: 9.5px;
 }
+.routes-page .route-detail-footer {
+  flex: 0 0 auto;
+  padding: 8px 14px 10px;
+  border-top: 1px solid #edf0ef;
+  background: #fff;
+}
 .routes-page .export-actions {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
@@ -4272,7 +4292,7 @@ select:focus-visible {
 }
 
 
-/* ??????? ??????: ???????? ????????? ?????????? ??? ????????? */
+/* Вузьке за висотою вікно: компактні деталі маршруту, кнопки експорту лишаються видимими */
 @media (min-width: 761px) and (max-height: 820px) {
   .page-content.routes-page {
     padding-top: 14px;
@@ -4294,7 +4314,7 @@ select:focus-visible {
     flex-wrap: nowrap;
   }
   .routes-page .routes-workspace {
-    height: clamp(210px, 36vh, 320px);
+    height: clamp(250px, 45vh, 360px);
   }
   .routes-page .route-table td {
     height: 40px;
@@ -4302,12 +4322,16 @@ select:focus-visible {
   .routes-page .table-footer {
     min-height: 34px;
   }
-  .routes-page .export-actions {
-    display: none;
+  /* Кнопки експорту не ховаємо: зменшуємо висоту й відступи, тіло панелі прокручується. */
+  .routes-page .route-detail-footer {
+    padding: 6px 14px 8px;
+  }
+  .routes-page .export-card {
+    height: 32px;
   }
 }
 
-/* ?????? ??????: ??????? ???? ???????, ??? ??????? ?? ???? ?????????????? ????????? */
+/* Середня ширина: ховаємо колонку статусу, щоб таблиця не стискалася */
 @media (min-width: 761px) and (max-width: 1050px) {
   .routes-page .route-table th:nth-child(3),
   .routes-page .route-table td:nth-child(3) {
@@ -4315,7 +4339,7 @@ select:focus-visible {
   }
 }
 
-/* ????????? ??????: ????? ?????? ???????, ?????? ?????? ??????? */
+/* Вузька ширина: менше місця заголовку, вужча панель деталей */
 @media (min-width: 761px) and (max-width: 1000px) {
   .routes-page .routes-toolbar-title {
     display: none;
@@ -4329,7 +4353,7 @@ select:focus-visible {
   }
 }
 
-/* ?????? ????????? ??????: ??????? ??????????? ??? ?????????????? ????????? */
+/* Вузька ширина таблиці: фіксована розкладка без горизонтального скролу */
 @media (min-width: 761px) and (max-width: 900px) {
   .routes-page .route-table {
     min-width: 0;
@@ -4356,7 +4380,7 @@ select:focus-visible {
   }
 }
 
-/* ???? ?????: ??????? ?????? ???????, ????????? ?????? */
+/* Мала карта: ховаємо довгі підписи елементів керування */
 @media (max-width: 950px) {
   .routes-map .facility-basemap-control > span,
   .routes-map .routes-map-control-label,
@@ -4365,12 +4389,215 @@ select:focus-visible {
   }
 }
 
-/* ???????: ????? ? ?????? ???? ??? ????? */
+/* Мобільні: карта й деталі в один стовпець */
 @media (max-width: 760px) {
   .routes-page .routes-workspace {
     grid-template-columns: minmax(0, 1fr);
   }
   .routes-page .routes-map-stage {
     height: 300px;
+  }
+}
+
+/* =========================================================
+   ??????? ????? ????????: ???????????? ????? ? ??????? A4
+   ========================================================= */
+.print-export-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: #0d1a16d9;
+  backdrop-filter: blur(3px);
+}
+.print-export-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 1460px);
+  height: min(100%, 950px);
+  overflow: hidden;
+  background: #f3f6f4;
+  border: 1px solid #dfe7e3;
+  border-radius: 14px;
+  box-shadow: 0 30px 80px #05130f66;
+}
+.print-export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e8edea;
+}
+.print-export-header h2 {
+  margin: 5px 0 2px;
+  font: 700 17px Manrope, sans-serif;
+  color: #283a32;
+  letter-spacing: -0.02em;
+}
+.print-export-header p {
+  margin: 0;
+  font-size: 11px;
+  color: #84918b;
+}
+.print-export-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.print-export-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.print-export-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 12px;
+  width: 288px;
+  padding: 14px;
+  overflow-y: auto;
+  background: #fff;
+  border-right: 1px solid #e8edea;
+}
+.print-control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: #43554e;
+}
+.print-control-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #7d8a85;
+}
+.print-control select,
+.print-control input {
+  height: 32px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  color: #34453f;
+  background: #fff;
+  border: 1px solid #e2e9e5;
+  border-radius: 6px;
+}
+.print-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid #e2e9e5;
+  border-radius: 7px;
+}
+.print-segmented button {
+  height: 30px;
+  font-size: 11px;
+  color: #5a6b64;
+  background: #fff;
+  border: 0;
+}
+.print-segmented button + button {
+  border-left: 1px solid #e2e9e5;
+}
+.print-segmented button.selected {
+  font-weight: 600;
+  color: #fff;
+  background: #147d61;
+}
+.print-elements {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.print-check {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 11.5px;
+  color: #3f524b;
+}
+.print-check input {
+  width: 14px;
+  height: 14px;
+  accent-color: #147d61;
+}
+.print-control-hint {
+  margin: 2px 0 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #86938e;
+}
+.print-export-submit {
+  margin-top: auto;
+}
+.print-export-stage {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  min-width: 0;
+  padding: 20px;
+  overflow: auto;
+  background: #e9eeeb;
+}
+.print-sheet-holder {
+  position: relative;
+}
+.print-sheet {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 10px 30px #1b2a2433;
+  transform-origin: top left;
+}
+.print-sheet-map {
+  position: absolute;
+  overflow: hidden;
+  background: #d9dfdc;
+}
+.print-sheet-inset {
+  box-shadow: 0 2px 10px #00000033;
+}
+.print-sheet-overlay {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.print-sheet-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #5b6b64;
+  pointer-events: none;
+  background: #ffffffd9;
+}
+@media (max-width: 900px) {
+  .print-export-overlay {
+    padding: 0;
+  }
+  .print-export-dialog {
+    height: 100%;
+    border-radius: 0;
+  }
+  .print-export-body {
+    flex-direction: column;
+  }
+  .print-export-controls {
+    width: auto;
+    max-height: 42%;
+    border-right: 0;
+    border-bottom: 1px solid #e8edea;
   }
 }
