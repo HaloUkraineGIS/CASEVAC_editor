@@ -185,7 +185,7 @@ function buildGraphics(options: SheetMapOptions): Graphic[] {
 export function createSheetView(container: HTMLDivElement, options: SheetMapOptions): MapView {
   const layer = new GraphicsLayer({ graphics: buildGraphics(options) });
 
-  return new MapView({
+  const view = new MapView({
     container,
     map: new Map({ basemap: imageryBasemap(), layers: [layer] }),
     center: options.center,
@@ -195,6 +195,13 @@ export function createSheetView(container: HTMLDivElement, options: SheetMapOpti
     ui: { components: [] },
     attributionVisible: false,
   });
+
+  // Масштаб змінюється лише через випадаючий список: вимикаємо зум колесом
+  // і подвійним кліком; пересування карти залишається доступним.
+  view.on('mouse-wheel', (event: { stopPropagation: () => void }) => event.stopPropagation());
+  view.on('double-click', (event: { stopPropagation: () => void }) => event.stopPropagation());
+
+  return view;
 }
 
 /** Переходить до потрібного центру й масштабу без анімації. */
@@ -227,14 +234,20 @@ export function geometryCenter(geometry: LonLat[]): LonLat {
 }
 
 /**
- * Типовий масштаб, у який маршрут вміщується на ділянці карти заданого
- * розміру (міліметри аркуша). Округлення — до 1000 / 5000 / 10 000.
+ * Типовий масштаб, у який всі опорні точки (маршрут, заклад, мінне поле)
+ * вміщуються на ділянці карти заданого розміру (міліметри аркуша) із запасом
+ * щонайменше 8 % від кожного краю. Округлення — вгору до 1000 / 5000 / 10 000,
+ * тому запас ніколи не менший за 8 %.
+ *
+ * Масштаб ArcGIS MapView — «номінальний» масштаб WebMercator, який не враховує
+ * спотворення проєкції: на широті φ наземне охоплення менше за номінальне у
+ * cos(φ) разів. Тому знаменник множиться на 1/cos(φ) від широти центру.
  */
 export function autoScaleFor(
   geometry: LonLat[],
   frameWidthMm: number,
   frameHeightMm: number,
-  padding = 1.12,
+  margin = 0.08,
 ): number {
   if (geometry.length < 2) return 25000;
 
@@ -254,12 +267,16 @@ export function autoScaleFor(
   const widthMeters = distanceMeters([minLon, midLat], [maxLon, midLat]);
   const heightMeters = distanceMeters([midLon, minLat], [midLon, maxLat]);
 
+  // Запас margin (частка від розміру охоплення) з кожного боку
   const required = Math.max(
-    widthMeters / (frameWidthMm / 1000),
-    heightMeters / (frameHeightMm / 1000),
+    (widthMeters * (1 + margin * 2)) / (frameWidthMm / 1000),
+    (heightMeters * (1 + margin * 2)) / (frameHeightMm / 1000),
   );
 
-  return niceScale(required * padding);
+  const latRad = (midLat * Math.PI) / 180;
+  const mercatorFactor = 1 / Math.max(0.2, Math.cos(latRad));
+
+  return niceScale(required * mercatorFactor);
 }
 
 /** Чекає, доки карта завершить перемальовування (для знімка). */

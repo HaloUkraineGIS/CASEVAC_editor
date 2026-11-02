@@ -104,11 +104,12 @@ export function defaultLayout(page: PageMm): PrintLayout {
     // Альбомна орієнтація 297 × 210 мм
     return {
       header: { xMm: W / 2 - 66, yMm: 7, wMm: 132, hMm: 17 },
-      logo: { xMm: 8, yMm: 7, wMm: 26, hMm: 18 },
-      north: { xMm: W - 8 - 12, yMm: 7, wMm: 12, hMm: 18 },
+      // Логотип і стрілка півночі зменшені в 1.5 раза проти початкових 26×18 і 12×18
+      logo: { xMm: 8, yMm: 7, wMm: 17, hMm: 12 },
+      north: { xMm: W - 8 - 8, yMm: 7, wMm: 8, hMm: 12 },
       inset: { xMm: W - 8 - 82, yMm: 32, wMm: 82, hMm: 60 },
       legend: { xMm: 8, yMm: H - 8 - 37, wMm: 66, hMm: 37 },
-      scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 15, wMm: 40, hMm: 15 },
+      scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 11, wMm: 40, hMm: 11 },
       stamp: { xMm: W / 2 - 51, yMm: H - 8 - 19, wMm: 102, hMm: 19 },
     };
   }
@@ -116,11 +117,11 @@ export function defaultLayout(page: PageMm): PrintLayout {
   // Портретна орієнтація 210 × 297 мм
   return {
     header: { xMm: W / 2 - 66, yMm: 7, wMm: 132, hMm: 17 },
-    logo: { xMm: 8, yMm: 7, wMm: 25, hMm: 17 },
-    north: { xMm: W - 8 - 12, yMm: 7, wMm: 12, hMm: 17 },
+    logo: { xMm: 8, yMm: 7, wMm: 17, hMm: 11 },
+    north: { xMm: W - 8 - 8, yMm: 7, wMm: 8, hMm: 11 },
     inset: { xMm: W - 8 - 80, yMm: 30, wMm: 80, hMm: 58 },
     legend: { xMm: 8, yMm: H - 8 - 37, wMm: 66, hMm: 37 },
-    scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 19 - 15 - 3, wMm: 40, hMm: 15 },
+    scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 19 - 11 - 3, wMm: 40, hMm: 11 },
     stamp: { xMm: W - 8 - 102, yMm: H - 8 - 19, wMm: 102, hMm: 19 },
   };
 }
@@ -145,17 +146,20 @@ export interface ScaleBarSpec {
   barMm: number;
 }
 
-/** Округлює довжину лінійки до 1 / 2 / 5 · 10ⁿ метрів. */
+/**
+ * Округлює довжину лінійки вниз до 1 / 2 / 5 · 10ⁿ метрів.
+ * Округлення лише вниз гарантує, що лінійка не виходить за межі своєї рамки.
+ */
 function niceMeters(raw: number): number {
   const exp = 10 ** Math.floor(Math.log10(raw));
   const mantissa = raw / exp;
-  const snap = mantissa <= 1 ? 1 : mantissa <= 2 ? 2 : mantissa <= 5 ? 5 : 10;
+  const snap = mantissa <= 1.3 ? 1 : mantissa <= 2.4 ? 2 : 5;
   return snap * exp;
 }
 
 /** Розрахунок масштабної лінійки під задану ширину блока на аркуші. */
 export function scaleBarSpec(scaleDenominator: number, availableMm: number): ScaleBarSpec {
-  const targetMm = Math.max(12, availableMm - 18);
+  const targetMm = Math.max(12, availableMm - 16);
   const totalMeters = niceMeters((targetMm / 1000) * scaleDenominator);
   return {
     label: `1:${Math.round(scaleDenominator).toLocaleString('uk-UA')}`,

@@ -237,12 +237,12 @@ function drawScaleBar(
   ctx.fillStyle = INK;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = font(3.1, 700, dpi);
-  ctx.fillText(spec.label, (rect.xMm + rect.wMm / 2) * k, (rect.yMm + 3.4) * k);
+  ctx.font = font(2.8, 700, dpi);
+  ctx.fillText(spec.label, (rect.xMm + rect.wMm / 2) * k, (rect.yMm + 2.9) * k);
 
   const barX = rect.xMm + 3;
-  const barY = rect.yMm + 6.4;
-  const barH = 1.8;
+  const barY = rect.yMm + 5.2;
+  const barH = 1.6;
   const segW = spec.barMm / segments;
 
   for (let index = 0; index < segments; index += 1) {
@@ -265,11 +265,10 @@ function drawScaleBar(
     const xMm = barX + segW * index;
     const anchor: CanvasTextAlign = index === 0 ? 'left' : index === segments ? 'right' : 'center';
     ctx.textAlign = anchor;
-    const x = anchor === 'left' ? xMm * k : anchor === 'right' ? xMm * k : xMm * k;
     ctx.fillText(
       formatDistance(spec.segmentMeters * index, spec.totalMeters),
-      x,
-      (barY + barH + 2.4) * k,
+      xMm * k,
+      (barY + barH + 2.2) * k,
     );
   }
 

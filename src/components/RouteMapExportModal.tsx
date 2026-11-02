@@ -11,9 +11,9 @@ import {
   clampRect,
   DEFAULT_INSET_SCALE,
   defaultLayout,
+  INSET_SCALE_OPTIONS,
   MAIN_SCALE_OPTIONS,
   mapFrame,
-  niceScale,
   scaleLabel,
   type Orientation,
   type PrintElementId,
@@ -21,7 +21,13 @@ import {
   type RectMm,
 } from '../lib/printLayout';
 import { jpegToPdf } from '../lib/printPdf';
-import { autoScaleFor, createSheetView, waitForViewIdle } from '../lib/printMap';
+import {
+  applyViewScale,
+  autoScaleFor,
+  createSheetView,
+  geometryCenter,
+  waitForViewIdle,
+} from '../lib/printMap';
 import { drawSheet } from '../lib/printDraw';
 import type { SheetTexts } from '../lib/printDraw';
 
@@ -82,6 +88,10 @@ export function RouteMapExportModal({
   const page = useMemo(() => a4Page(orientation), [orientation]);
   const frame = useMemo(() => mapFrame(page), [page]);
 
+  // Розміри аркуша в пікселях попереднього перегляду (96 dpi)
+  const designW = Math.round(page.widthMm * PREVIEW_PX_PER_MM);
+  const designH = Math.round(page.heightMm * PREVIEW_PX_PER_MM);
+
   // Стан режиму взаємодії: переміщення вмісту карт чи переміщення елементів аркуша
   const [mapPanEnabled, setMapPanEnabled] = useState(true);
   const [layout, setLayout] = useState<PrintLayout>(() => defaultLayout(page));
@@ -115,46 +125,24 @@ export function RouteMapExportModal({
     return pts;
   }, [route.geometry, facilityPoint, minefield?.location]);
 
-  // Розрахунок географічного охоплення (plain object, autocast у MapView.goTo)
-  const bbox = useMemo(() => {
-    if (allPoints.length === 0) {
-      return { center: [31.0, 49.3] as LonLat, extentObj: null };
-    }
-    let minLon = allPoints[0][0];
-    let maxLon = allPoints[0][0];
-    let minLat = allPoints[0][1];
-    let maxLat = allPoints[0][1];
-    for (const [lon, lat] of allPoints) {
-      minLon = Math.min(minLon, lon);
-      maxLon = Math.max(maxLon, lon);
-      minLat = Math.min(minLat, lat);
-      maxLat = Math.max(maxLat, lat);
-    }
-    const center: LonLat = [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
-    // Розширюємо bbox на 30% (аналог Extent.expand(1.3))
-    const padLon = (maxLon - minLon) * 0.15;
-    const padLat = (maxLat - minLat) * 0.15;
-    const extentObj = {
-      type: 'extent' as const,
-      xmin: minLon - padLon,
-      ymin: minLat - padLat,
-      xmax: maxLon + padLon,
-      ymax: maxLat + padLat,
-      spatialReference: { wkid: 4326 },
-    };
-    return { center, extentObj };
-  }, [allPoints]);
+  const bboxCenter = useMemo<LonLat>(() => geometryCenter(allPoints), [allPoints]);
 
-  // Розрахунковий масштаб за замовчуванням
+  // Розрахунковий масштаб за замовчуванням (8 % запасу від країв, поправка WebMercator)
   const calculatedAutoScale = useMemo(
-    () => autoScaleFor(allPoints, frame.wMm, frame.hMm, 1.25),
+    () => autoScaleFor(allPoints, frame.wMm, frame.hMm),
     [allPoints, frame],
   );
 
   const [userScale, setUserScale] = useState<number | 'auto'>('auto');
-  const [autoScaleState, setAutoScaleState] = useState<number | null>(null);
+  const [customScaleMode, setCustomScaleMode] = useState(false);
+  const [customScaleText, setCustomScaleText] = useState('');
 
-  const currentScale = userScale === 'auto' ? (autoScaleState ?? calculatedAutoScale) : userScale;
+  // Масштаб врізки із закладом
+  const [insetScale, setInsetScale] = useState<number>(DEFAULT_INSET_SCALE);
+  const [insetCustomMode, setInsetCustomMode] = useState(false);
+  const [insetCustomText, setInsetCustomText] = useState('');
+
+  const currentScale = userScale === 'auto' ? calculatedAutoScale : userScale;
 
   // Тексти для шапки, підписів та таблиці штампу
   const texts = useMemo<SheetTexts>(() => {
@@ -204,7 +192,7 @@ export function RouteMapExportModal({
       startLabel: route.code,
       facilityLabel: facility?.name ?? route.facilityName,
       showLabels: true,
-      center: bbox.center,
+      center: bboxCenter,
       scale: currentScale,
     });
 
@@ -212,19 +200,9 @@ export function RouteMapExportModal({
 
     main
       .when(async () => {
-        if (bbox.extentObj && userScale === 'auto') {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await main.goTo(bbox.extentObj as any, { animate: false });
-            const fitted = niceScale(main.scale);
-            await main.goTo({ scale: fitted }, { animate: false });
-            setAutoScaleState(fitted);
-          } catch {
-            await main.goTo({ center: bbox.center, scale: calculatedAutoScale }, { animate: false });
-          }
-        } else {
-          await main.goTo({ center: bbox.center, scale: currentScale }, { animate: false });
-        }
+        // Масштаб розраховано детерміновано в autoScaleFor — центр охоплення
+        // і знаменник задаються напряму, без goTo(extent).
+        await applyViewScale(main, bboxCenter, currentScale);
         setMainReady(true);
       })
       .catch(() => undefined);
@@ -233,6 +211,7 @@ export function RouteMapExportModal({
       mainViewRef.current = null;
       main.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.id, facilityPoint, orientation]);
 
   // === Врізка із закладом (Inset Map) ===
@@ -253,14 +232,14 @@ export function RouteMapExportModal({
       facilityLabel: facility?.name ?? route.facilityName,
       showLabels: false,
       center: facilityPoint,
-      scale: DEFAULT_INSET_SCALE,
+      scale: insetScale,
     });
 
     insetViewRef.current = inset;
 
     inset
       .when(async () => {
-        await inset.goTo({ center: facilityPoint, scale: DEFAULT_INSET_SCALE }, { animate: false });
+        await applyViewScale(inset, facilityPoint, insetScale);
         setInsetReady(true);
       })
       .catch(() => undefined);
@@ -269,6 +248,7 @@ export function RouteMapExportModal({
       insetViewRef.current = null;
       inset.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.id, facilityPoint, orientation]);
 
   // === Малювання елементів аркуша на попередньому перегляді ===
@@ -288,10 +268,10 @@ export function RouteMapExportModal({
     const canvas = overlayCanvasRef.current;
     if (!canvas) return { xMm: 0, yMm: 0 };
     const rect = canvas.getBoundingClientRect();
-    const pxX = e.clientX - rect.left;
-    const pxY = e.clientY - rect.top;
-    const xMm = pxX / PREVIEW_PX_PER_MM;
-    const yMm = pxY / PREVIEW_PX_PER_MM;
+    // Координати рахуємо часткою від фактичного розміру — так перетягування
+    // працює за будь-якого масштабу попереднього перегляду.
+    const xMm = rect.width > 0 ? ((e.clientX - rect.left) / rect.width) * page.widthMm : 0;
+    const yMm = rect.height > 0 ? ((e.clientY - rect.top) / rect.height) * page.heightMm : 0;
     return { xMm, yMm };
   };
 
@@ -380,7 +360,7 @@ export function RouteMapExportModal({
       visible: allElementsVisible(),
       texts,
       scale: currentScale,
-      insetScale: DEFAULT_INSET_SCALE,
+      insetScale,
       dpi: 96,
       logo: logoImg,
       northArrow: northImg,
@@ -420,6 +400,7 @@ export function RouteMapExportModal({
     layout,
     texts,
     currentScale,
+    insetScale,
     logoImg,
     northImg,
     mapPanEnabled,
@@ -427,31 +408,83 @@ export function RouteMapExportModal({
     hoveredId,
   ]);
 
-  // Зміна масштабу з випадаючого списку
+  // Зміна масштабу основної карти з випадаючого списку / поля «Інший масштаб»
   const handleScaleChange = (val: string) => {
+    if (val === 'custom') {
+      setCustomScaleMode(true);
+      return;
+    }
+    setCustomScaleMode(false);
     if (val === 'auto') {
       setUserScale('auto');
-      if (mainViewRef.current && bbox.extentObj) {
-        mainViewRef.current
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .goTo(bbox.extentObj as any, { animate: false })
-          .then(() => {
-            if (mainViewRef.current) {
-              const fitted = niceScale(mainViewRef.current.scale);
-              mainViewRef.current.goTo({ scale: fitted }, { animate: false });
-              setAutoScaleState(fitted);
-            }
-          })
-          .catch(() => undefined);
-      }
-    } else {
-      const num = Number(val);
-      setUserScale(num);
       if (mainViewRef.current) {
-        mainViewRef.current.goTo({ scale: num }, { animate: false });
+        void applyViewScale(mainViewRef.current, bboxCenter, calculatedAutoScale);
+      }
+      return;
+    }
+    const num = Number(val);
+    setUserScale(num);
+    if (mainViewRef.current) {
+      mainViewRef.current.goTo({ scale: num }, { animate: false });
+    }
+  };
+
+  // Ручне введення масштабу основної карти
+  const handleCustomScaleInput = (raw: string) => {
+    setCustomScaleText(raw);
+    const num = Number(raw);
+    if (raw.trim() !== '' && Number.isFinite(num) && num >= 100) {
+      const rounded = Math.round(num);
+      setUserScale(rounded);
+      mainViewRef.current?.goTo({ scale: rounded }, { animate: false });
+    }
+  };
+
+  // Зміна масштабу врізки із закладом
+  const handleInsetScaleChange = (val: string) => {
+    if (val === 'custom') {
+      setInsetCustomMode(true);
+      return;
+    }
+    setInsetCustomMode(false);
+    const num = Number(val);
+    setInsetScale(num);
+    if (insetViewRef.current) {
+      void applyViewScale(insetViewRef.current, facilityPoint, num);
+    }
+  };
+
+  // Ручне введення масштабу врізки
+  const handleInsetCustomInput = (raw: string) => {
+    setInsetCustomText(raw);
+    const num = Number(raw);
+    if (raw.trim() !== '' && Number.isFinite(num) && num >= 100) {
+      const rounded = Math.round(num);
+      setInsetScale(rounded);
+      if (insetViewRef.current) {
+        void applyViewScale(insetViewRef.current, facilityPoint, rounded);
       }
     }
   };
+
+  // === Масштабування попереднього перегляду під доступну площу екрана ===
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [previewFit, setPreviewFit] = useState(1);
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const update = () => {
+      const availW = Math.max(160, el.clientWidth - 40);
+      const availH = Math.max(160, el.clientHeight - 40);
+      const fit = Math.min(availW / designW, availH / designH, 1);
+      setPreviewFit(Math.max(fit, 0.15));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [designW, designH]);
 
   // === Експорт PDF ===
   const [exporting, setExporting] = useState(false);
@@ -519,7 +552,7 @@ export function RouteMapExportModal({
         visible: allElementsVisible(),
         texts,
         scale: currentScale,
-        insetScale: DEFAULT_INSET_SCALE,
+        insetScale,
         dpi: EXPORT_DPI,
         logo: logoImg,
         northArrow: northImg,
@@ -543,9 +576,6 @@ export function RouteMapExportModal({
     }
   };
 
-  const designW = Math.round(page.widthMm * PREVIEW_PX_PER_MM);
-  const designH = Math.round(page.heightMm * PREVIEW_PX_PER_MM);
-
   return (
     <div className="print-export-overlay">
       <section
@@ -559,7 +589,8 @@ export function RouteMapExportModal({
             <span className="modal-kicker">ЕКСПОРТ КАРТИ</span>
             <h2>Карта маршруту {route.code}</h2>
             <p>
-              {facility?.name ?? route.facilityName} · A4 · масштаб {scaleLabel(currentScale)}
+              {facility?.name ?? route.facilityName} · A4 {page.widthMm}×{page.heightMm} мм ·
+              масштаб {scaleLabel(currentScale)}
             </p>
           </div>
           <div className="print-export-header-actions">
@@ -592,17 +623,60 @@ export function RouteMapExportModal({
             </div>
 
             <div className="print-control">
-              <span className="print-control-label">Масштаб</span>
-              <select value={userScale} onChange={(e) => handleScaleChange(e.target.value)}>
-                <option value="auto">
-                  Авто — {scaleLabel(autoScaleState ?? calculatedAutoScale)}
-                </option>
+              <span className="print-control-label">Масштаб карти</span>
+              <select
+                value={
+                  customScaleMode
+                    ? 'custom'
+                    : userScale === 'auto'
+                      ? 'auto'
+                      : String(userScale)
+                }
+                onChange={(e) => handleScaleChange(e.target.value)}
+              >
+                <option value="auto">Авто — {scaleLabel(calculatedAutoScale)}</option>
                 {MAIN_SCALE_OPTIONS.map((v) => (
                   <option key={v} value={v}>
                     {scaleLabel(v)}
                   </option>
                 ))}
+                <option value="custom">Інший масштаб…</option>
               </select>
+              {customScaleMode && (
+                <input
+                  type="number"
+                  min={100}
+                  step={500}
+                  value={customScaleText}
+                  placeholder="Наприклад 75000"
+                  onChange={(e) => handleCustomScaleInput(e.target.value)}
+                />
+              )}
+            </div>
+
+            <div className="print-control">
+              <span className="print-control-label">Масштаб врізки</span>
+              <select
+                value={insetCustomMode ? 'custom' : String(insetScale)}
+                onChange={(e) => handleInsetScaleChange(e.target.value)}
+              >
+                {INSET_SCALE_OPTIONS.map((v) => (
+                  <option key={v} value={v}>
+                    {scaleLabel(v)}
+                  </option>
+                ))}
+                <option value="custom">Інший масштаб…</option>
+              </select>
+              {insetCustomMode && (
+                <input
+                  type="number"
+                  min={100}
+                  step={500}
+                  value={insetCustomText}
+                  placeholder="Наприклад 3500"
+                  onChange={(e) => handleInsetCustomInput(e.target.value)}
+                />
+              )}
             </div>
 
             <div className="print-control">
@@ -656,14 +730,21 @@ export function RouteMapExportModal({
             </button>
           </aside>
 
-          <div className="print-export-stage">
+          <div className="print-export-stage" ref={stageRef}>
+            {/* Тримач підігнаний під масштабовані розміри аркуша, щоб сцена
+                не прокручувалася й аркуш завжди вміщався в екран */}
             <div
-              className="print-sheet"
-              style={{
-                width: designW,
-                height: designH,
-              }}
+              className="print-sheet-holder"
+              style={{ width: designW * previewFit, height: designH * previewFit }}
             >
+              <div
+                className="print-sheet"
+                style={{
+                  width: designW,
+                  height: designH,
+                  transform: `scale(${previewFit})`,
+                }}
+              >
               {/* Основна карта */}
               <div
                 ref={mainMapRef}
@@ -719,6 +800,7 @@ export function RouteMapExportModal({
                   <Loader2 size={18} className="spin" /> Завантаження карт…
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
