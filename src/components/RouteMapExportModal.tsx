@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type MapView from '@arcgis/core/views/MapView.js';
 import { useToast } from './ToastContext';
-import { formatDate } from '../lib/format';
 import { Download, Loader2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import type { FacilityRecord, LonLat, MinefieldRecord, RouteRecord } from '../types';
@@ -50,9 +49,7 @@ async function loadSvg(url: string): Promise<HTMLImageElement> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const svgText = await res.text();
     let modified = svgText;
-    const vbMatch = svgText.match(
-      /viewBox=["']\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*["']/,
-    );
+    const vbMatch = svgText.match(/viewBox=["']\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*["']/);
     if (vbMatch && (!svgText.includes('width=') || !svgText.includes('height='))) {
       const [, , , vbW, vbH] = vbMatch;
       modified = svgText.replace(/<svg\b([^>]*)>/, `<svg$1 width="${vbW}" height="${vbH}">`);
@@ -76,12 +73,7 @@ async function loadSvg(url: string): Promise<HTMLImageElement> {
   }
 }
 
-export function RouteMapExportModal({
-  route,
-  facility,
-  minefield,
-  onClose,
-}: RouteMapExportModalProps) {
+export function RouteMapExportModal({ route, facility, minefield, onClose }: RouteMapExportModalProps) {
   const { notify } = useToast();
 
   const [orientation, setOrientation] = useState<Orientation>('landscape');
@@ -110,10 +102,7 @@ export function RouteMapExportModal({
   }, [orientation]);
 
   const facilityPoint = useMemo<LonLat>(
-    () =>
-      facility?.location ??
-      route.geometry[route.geometry.length - 1] ??
-      ([31.0, 49.3] as LonLat),
+    () => facility?.location ?? route.geometry[route.geometry.length - 1] ?? ([31.0, 49.3] as LonLat),
     [facility, route.geometry],
   );
 
@@ -151,12 +140,7 @@ export function RouteMapExportModal({
     return {
       heading: `CASEVAC${len}`,
       subheading: `Ділянка розмінування ${route.code}${tit}`,
-      facilityCaption: facility?.address
-        ? facility.address
-        : facility?.name ?? route.facilityName,
-      compiledBy: route.surveyedBy || '—',
-      position: 'Медик',
-      date: formatDate(route.surveyDate),
+      facilityCaption: facility?.address ? facility.address : (facility?.name ?? route.facilityName),
     };
   }, [route, minefield, facility]);
 
@@ -254,15 +238,7 @@ export function RouteMapExportModal({
   // === Малювання елементів аркуша на попередньому перегляді ===
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const HIT_ORDER: PrintElementId[] = [
-    'north',
-    'logo',
-    'scaleBar',
-    'stamp',
-    'legend',
-    'header',
-    'inset',
-  ];
+  const HIT_ORDER: PrintElementId[] = ['north', 'logo', 'scaleBar', 'stamp', 'legend', 'header', 'inset'];
 
   const getSheetCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = overlayCanvasRef.current;
@@ -278,13 +254,7 @@ export function RouteMapExportModal({
   const hitTest = (xMm: number, yMm: number, curLayout: PrintLayout): PrintElementId | null => {
     for (const id of HIT_ORDER) {
       const box = curLayout[id];
-      if (
-        box &&
-        xMm >= box.xMm &&
-        xMm <= box.xMm + box.wMm &&
-        yMm >= box.yMm &&
-        yMm <= box.yMm + box.hMm
-      ) {
+      if (box && xMm >= box.xMm && xMm <= box.xMm + box.wMm && yMm >= box.yMm && yMm <= box.yMm + box.hMm) {
         return id;
       }
     }
@@ -560,12 +530,13 @@ export function RouteMapExportModal({
 
       // Формуємо JPEG та загортаємо в PDF
       const jpeg = await new Promise<Blob>((res, rej) =>
-        canvas.toBlob((b) => (b ? res(b) : rej(new Error('Помилка створення зображення'))), 'image/jpeg', 0.94),
+        canvas.toBlob(
+          (b) => (b ? res(b) : rej(new Error('Помилка створення зображення'))),
+          'image/jpeg',
+          0.94,
+        ),
       );
-      const pdf = await jpegToPdf(
-        { blob: jpeg, widthPx: canvas.width, heightPx: canvas.height },
-        page,
-      );
+      const pdf = await jpegToPdf({ blob: jpeg, widthPx: canvas.width, heightPx: canvas.height }, page);
       saveAs(pdf, `${route.code || 'casevac'}-casevac-map.pdf`);
       notify('PDF карту успішно збережено', 'success');
     } catch (err: any) {
@@ -586,11 +557,10 @@ export function RouteMapExportModal({
       >
         <header className="print-export-header">
           <div>
-            <span className="modal-kicker">ЕКСПОРТ КАРТИ</span>
             <h2>Карта маршруту {route.code}</h2>
             <p>
-              {facility?.name ?? route.facilityName} · A4 {page.widthMm}×{page.heightMm} мм ·
-              масштаб {scaleLabel(currentScale)}
+              {facility?.name ?? route.facilityName} · A4 {page.widthMm}×{page.heightMm} мм · масштаб{' '}
+              {scaleLabel(currentScale)}
             </p>
           </div>
           <div className="print-export-header-actions">
@@ -625,13 +595,7 @@ export function RouteMapExportModal({
             <div className="print-control">
               <span className="print-control-label">Масштаб карти</span>
               <select
-                value={
-                  customScaleMode
-                    ? 'custom'
-                    : userScale === 'auto'
-                      ? 'auto'
-                      : String(userScale)
-                }
+                value={customScaleMode ? 'custom' : userScale === 'auto' ? 'auto' : String(userScale)}
                 onChange={(e) => handleScaleChange(e.target.value)}
               >
                 <option value="auto">Авто — {scaleLabel(calculatedAutoScale)}</option>
@@ -745,61 +709,61 @@ export function RouteMapExportModal({
                   transform: `scale(${previewFit})`,
                 }}
               >
-              {/* Основна карта */}
-              <div
-                ref={mainMapRef}
-                className="print-sheet-map"
-                style={{
-                  left: frame.xMm * PREVIEW_PX_PER_MM,
-                  top: frame.yMm * PREVIEW_PX_PER_MM,
-                  width: frame.wMm * PREVIEW_PX_PER_MM,
-                  height: frame.hMm * PREVIEW_PX_PER_MM,
-                  pointerEvents: mapPanEnabled ? 'auto' : 'none',
-                }}
-              />
+                {/* Основна карта */}
+                <div
+                  ref={mainMapRef}
+                  className="print-sheet-map"
+                  style={{
+                    left: frame.xMm * PREVIEW_PX_PER_MM,
+                    top: frame.yMm * PREVIEW_PX_PER_MM,
+                    width: frame.wMm * PREVIEW_PX_PER_MM,
+                    height: frame.hMm * PREVIEW_PX_PER_MM,
+                    pointerEvents: mapPanEnabled ? 'auto' : 'none',
+                  }}
+                />
 
-              {/* Врізка із закладом */}
-              <div
-                ref={insetMapRef}
-                className="print-sheet-map print-sheet-inset"
-                style={{
-                  left: layout.inset.xMm * PREVIEW_PX_PER_MM,
-                  top: layout.inset.yMm * PREVIEW_PX_PER_MM,
-                  width: layout.inset.wMm * PREVIEW_PX_PER_MM,
-                  height: layout.inset.hMm * PREVIEW_PX_PER_MM,
-                  pointerEvents: mapPanEnabled ? 'auto' : 'none',
-                }}
-              />
+                {/* Врізка із закладом */}
+                <div
+                  ref={insetMapRef}
+                  className="print-sheet-map print-sheet-inset"
+                  style={{
+                    left: layout.inset.xMm * PREVIEW_PX_PER_MM,
+                    top: layout.inset.yMm * PREVIEW_PX_PER_MM,
+                    width: layout.inset.wMm * PREVIEW_PX_PER_MM,
+                    height: layout.inset.hMm * PREVIEW_PX_PER_MM,
+                    pointerEvents: mapPanEnabled ? 'auto' : 'none',
+                  }}
+                />
 
-              {/* Оверлей-полотно з елементами оформлення */}
-              <canvas
-                ref={overlayCanvasRef}
-                className="print-sheet-overlay"
-                width={designW}
-                height={designH}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  pointerEvents: mapPanEnabled ? 'none' : 'auto',
-                  cursor: mapPanEnabled
-                    ? 'default'
-                    : draggingId
-                      ? 'grabbing'
-                      : hoveredId
-                        ? 'grab'
-                        : 'default',
-                }}
-              />
+                {/* Оверлей-полотно з елементами оформлення */}
+                <canvas
+                  ref={overlayCanvasRef}
+                  className="print-sheet-overlay"
+                  width={designW}
+                  height={designH}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: mapPanEnabled ? 'none' : 'auto',
+                    cursor: mapPanEnabled
+                      ? 'default'
+                      : draggingId
+                        ? 'grabbing'
+                        : hoveredId
+                          ? 'grab'
+                          : 'default',
+                  }}
+                />
 
-              {(!mainReady || !insetReady) && (
-                <div className="print-sheet-loading">
-                  <Loader2 size={18} className="spin" /> Завантаження карт…
-                </div>
-              )}
+                {(!mainReady || !insetReady) && (
+                  <div className="print-sheet-loading">
+                    <Loader2 size={18} className="spin" /> Завантаження карт…
+                  </div>
+                )}
               </div>
             </div>
           </div>

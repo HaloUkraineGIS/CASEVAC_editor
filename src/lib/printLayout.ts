@@ -21,14 +21,7 @@ export interface RectMm {
 }
 
 /** Елементи, які малюються поверх карт і можуть перетягуватися. */
-export type PrintElementId =
-  | 'header'
-  | 'logo'
-  | 'north'
-  | 'legend'
-  | 'scaleBar'
-  | 'stamp'
-  | 'inset';
+export type PrintElementId = 'header' | 'logo' | 'north' | 'legend' | 'scaleBar' | 'stamp' | 'inset';
 
 export type PrintLayout = Record<PrintElementId, RectMm>;
 export type ElementVisibility = Record<PrintElementId, boolean>;
@@ -68,9 +61,7 @@ export function allElementsVisible(): ElementVisibility {
 }
 
 export function a4Page(orientation: Orientation): PageMm {
-  return orientation === 'portrait'
-    ? { widthMm: 210, heightMm: 297 }
-    : { widthMm: 297, heightMm: 210 };
+  return orientation === 'portrait' ? { widthMm: 210, heightMm: 297 } : { widthMm: 297, heightMm: 210 };
 }
 
 /** Ділянка основної карти (аркуш без полів). */
@@ -110,7 +101,8 @@ export function defaultLayout(page: PageMm): PrintLayout {
       inset: { xMm: W - 8 - 82, yMm: 32, wMm: 82, hMm: 60 },
       legend: { xMm: 8, yMm: H - 8 - 37, wMm: 66, hMm: 37 },
       scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 11, wMm: 40, hMm: 11 },
-      stamp: { xMm: W / 2 - 51, yMm: H - 8 - 19, wMm: 102, hMm: 19 },
+      // Статичний підпис — один рядок, тому блок нижчий за колишню таблицю.
+      stamp: { xMm: W / 2 - 51, yMm: H - 8 - 12, wMm: 102, hMm: 12 },
     };
   }
 
@@ -121,8 +113,8 @@ export function defaultLayout(page: PageMm): PrintLayout {
     north: { xMm: W - 8 - 8, yMm: 7, wMm: 8, hMm: 11 },
     inset: { xMm: W - 8 - 80, yMm: 30, wMm: 80, hMm: 58 },
     legend: { xMm: 8, yMm: H - 8 - 37, wMm: 66, hMm: 37 },
-    scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 19 - 11 - 3, wMm: 40, hMm: 11 },
-    stamp: { xMm: W - 8 - 102, yMm: H - 8 - 19, wMm: 102, hMm: 19 },
+    scaleBar: { xMm: W - 8 - 40, yMm: H - 8 - 12 - 11 - 3, wMm: 40, hMm: 11 },
+    stamp: { xMm: W - 8 - 102, yMm: H - 8 - 12, wMm: 102, hMm: 12 },
   };
 }
 

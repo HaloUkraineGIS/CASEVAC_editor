@@ -22,12 +22,6 @@ export interface SheetTexts {
   subheading: string;
   /** Підпис врізки: адреса або назва закладу. */
   facilityCaption: string;
-  /** Хто склав маршрут. */
-  compiledBy: string;
-  /** Посада того, хто склав маршрут. */
-  position: string;
-  /** Дата складання. */
-  date: string;
 }
 
 export interface SheetDrawOptions {
@@ -71,6 +65,61 @@ function fitFont(
     size -= 0.2;
   }
   return size;
+}
+
+/**
+ * Розбиває текст на рядки за шириною, не змінюючи розмір шрифту.
+ * Довгі слова (наприклад, складні адреси без пробілів) переносяться по символах.
+ */
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidthPx: number,
+  maxLines: number,
+): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0 || maxWidthPx <= 0) return [];
+
+  const lines: string[] = [];
+  let current = '';
+
+  const breakWord = (word: string): string => {
+    let chunk = '';
+    for (const char of word) {
+      if (ctx.measureText(chunk + char).width <= maxWidthPx) {
+        chunk += char;
+      } else {
+        if (chunk) lines.push(chunk);
+        chunk = char;
+      }
+    }
+    return chunk;
+  };
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width <= maxWidthPx) {
+      current = candidate;
+      return;
+    }
+    if (current) {
+      lines.push(current);
+      current = '';
+    }
+    current = ctx.measureText(word).width > maxWidthPx ? breakWord(word) : word;
+  });
+  if (current) lines.push(current);
+
+  if (lines.length <= maxLines) return lines;
+
+  // Якщо рядків забагато — обрізаємо останній і додаємо трикрапку.
+  const visible = lines.slice(0, maxLines);
+  let last = visible[maxLines - 1];
+  while (last.length > 1 && ctx.measureText(`${last}…`).width > maxWidthPx) {
+    last = last.slice(0, -1);
+  }
+  visible[maxLines - 1] = `${last}…`;
+  return visible;
 }
 
 function drawBox(
@@ -118,7 +167,12 @@ function drawImageFit(
 }
 
 function imageSize(image: CanvasImageSource): { width: number; height: number } | null {
-  const candidate = image as { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
+  const candidate = image as {
+    naturalWidth?: number;
+    naturalHeight?: number;
+    width?: number;
+    height?: number;
+  };
   const width = candidate.naturalWidth || candidate.width || 0;
   const height = candidate.naturalHeight || candidate.height || 0;
   if (width > 0 && height > 0) return { width, height };
@@ -133,12 +187,7 @@ function formatDistance(meters: number, totalMeters: number): string {
   return String(Math.round(meters));
 }
 
-function drawHeader(
-  ctx: CanvasRenderingContext2D,
-  rect: RectMm,
-  texts: SheetTexts,
-  dpi: number,
-): void {
+function drawHeader(ctx: CanvasRenderingContext2D, rect: RectMm, texts: SheetTexts, dpi: number): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
   const k = dpi / 25.4;
   const cx = (rect.xMm + rect.wMm / 2) * k;
@@ -152,16 +201,12 @@ function drawHeader(
   ctx.font = font(titleSize, 700, dpi);
   ctx.fillText(texts.heading, cx, (rect.yMm + rect.hMm * 0.36) * k);
 
-  const subSize = fitFont(ctx, texts.subheading, maxW, 3.2, 400, dpi, 2);
+  const subSize = fitFont(ctx, texts.subheading, maxW, 4, 400, dpi, 2.6);
   ctx.font = font(subSize, 400, dpi);
   ctx.fillText(texts.subheading, cx, (rect.yMm + rect.hMm * 0.73) * k);
 }
 
-function drawLegend(
-  ctx: CanvasRenderingContext2D,
-  rect: RectMm,
-  dpi: number,
-): void {
+function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
   const k = dpi / 25.4;
   const left = (rect.xMm + 3) * k;
@@ -223,12 +268,7 @@ function drawLegend(
   });
 }
 
-function drawScaleBar(
-  ctx: CanvasRenderingContext2D,
-  rect: RectMm,
-  scale: number,
-  dpi: number,
-): void {
+function drawScaleBar(ctx: CanvasRenderingContext2D, rect: RectMm, scale: number, dpi: number): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
   const k = dpi / 25.4;
   const spec = scaleBarSpec(scale, rect.wMm);
@@ -240,7 +280,13 @@ function drawScaleBar(
   ctx.font = font(2.8, 700, dpi);
   ctx.fillText(spec.label, (rect.xMm + rect.wMm / 2) * k, (rect.yMm + 2.9) * k);
 
-  const barX = rect.xMm + 3;
+  // Лінійку центруємо разом із підписом одиниці виміру, а не притискаємо до лівого краю.
+  const unit = spec.totalMeters >= 1000 ? 'км' : 'м';
+  ctx.font = font(2.2, 400, dpi);
+  const unitWidthMm = ctx.measureText(unit).width / k;
+  const unitGapMm = 1.6;
+  const groupWidthMm = spec.barMm + unitGapMm + unitWidthMm;
+  const barX = rect.xMm + Math.max(2, (rect.wMm - groupWidthMm) / 2);
   const barY = rect.yMm + 5.2;
   const barH = 1.6;
   const segW = spec.barMm / segments;
@@ -273,72 +319,45 @@ function drawScaleBar(
   }
 
   ctx.textAlign = 'left';
-  ctx.fillText(
-    spec.totalMeters >= 1000 ? 'км' : 'м',
-    (barX + spec.barMm + 1.6) * k,
-    (barY + barH / 2) * k,
-  );
+  ctx.fillText(unit, (barX + spec.barMm + unitGapMm) * k, (barY + barH / 2) * k);
 }
 
-function drawStamp(
-  ctx: CanvasRenderingContext2D,
-  rect: RectMm,
-  texts: SheetTexts,
-  dpi: number,
-): void {
+/**
+ * Статичний підпис унизу аркуша: «Складено ______ Медичний працівник».
+ * Дані маршруту тут навмисно не друкуються.
+ */
+function drawStamp(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
   const k = dpi / 25.4;
-  const rows: [string, string][] = [
-    ['Складено', texts.compiledBy || '—'],
-    ['Посада', texts.position || '—'],
-    ['Дата', texts.date || '—'],
-  ];
+  const paddingMm = 3;
+  const centerY = (rect.yMm + rect.hMm / 2) * k;
 
-  const labelW = Math.min(38, rect.wMm * 0.38);
-  const rowH = rect.hMm / rows.length;
+  ctx.fillStyle = INK;
+  ctx.textBaseline = 'middle';
+  ctx.font = font(3, 500, dpi);
 
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 0.25 * k;
-  ctx.beginPath();
-  ctx.moveTo((rect.xMm + labelW) * k, rect.yMm * k);
-  ctx.lineTo((rect.xMm + labelW) * k, (rect.yMm + rect.hMm) * k);
-  ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.fillText('Складено', (rect.xMm + paddingMm) * k, centerY);
+  const leftWidthMm = ctx.measureText('Складено').width / k;
 
-  rows.forEach(([label, value], index) => {
-    const yMm = rect.yMm + rowH * index;
-    if (index > 0) {
-      ctx.beginPath();
-      ctx.moveTo(rect.xMm * k, yMm * k);
-      ctx.lineTo((rect.xMm + rect.wMm) * k, yMm * k);
-      ctx.stroke();
-    }
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#5b5b5b';
-    ctx.font = font(2.4, 500, dpi);
-    ctx.textAlign = 'left';
-    ctx.fillText(label, (rect.xMm + 2) * k, (yMm + rowH / 2) * k);
+  ctx.textAlign = 'right';
+  ctx.fillText('Медичний працівник', (rect.xMm + rect.wMm - paddingMm) * k, centerY);
+  const rightWidthMm = ctx.measureText('Медичний працівник').width / k;
 
-    const size = fitFont(
-      ctx,
-      value,
-      (rect.wMm - labelW - 4) * k,
-      2.8,
-      600,
-      dpi,
-      1.8,
-    );
-    ctx.font = font(size, 600, dpi);
-    ctx.fillStyle = INK;
-    ctx.fillText(value, (rect.xMm + labelW + 2) * k, (yMm + rowH / 2) * k);
-  });
+  const lineStart = rect.xMm + paddingMm + leftWidthMm + 2.5;
+  const lineEnd = rect.xMm + rect.wMm - paddingMm - rightWidthMm - 2.5;
+  if (lineEnd > lineStart) {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = (0.35 * dpi) / 25.4;
+    ctx.beginPath();
+    const lineY = (rect.yMm + rect.hMm * 0.64) * k;
+    ctx.moveTo(lineStart * k, lineY);
+    ctx.lineTo(lineEnd * k, lineY);
+    ctx.stroke();
+  }
 }
 
-function drawInsetFrame(
-  ctx: CanvasRenderingContext2D,
-  rect: RectMm,
-  caption: string,
-  dpi: number,
-): void {
+function drawInsetFrame(ctx: CanvasRenderingContext2D, rect: RectMm, caption: string, dpi: number): void {
   const k = dpi / 25.4;
   ctx.strokeStyle = INK;
   ctx.lineWidth = (0.4 * dpi) / 25.4;
@@ -347,21 +366,35 @@ function drawInsetFrame(
 
   if (!caption) return;
 
-  const captionH = 6.4;
+  // Розмір шрифту підпису фіксований. Довгий текст переноситься на нові
+  // рядки з мінімальним міжрядковим інтервалом, а не зменшується.
+  const stripWidthMm = rect.wMm - 3.5;
+  const fontSizeMm = 2.7;
+  const lineHeightMm = 3;
+  const paddingX = 2;
+  const paddingY = 1.2;
+  ctx.font = font(fontSizeMm, 600, dpi);
+  const lines = wrapText(ctx, caption, (stripWidthMm - paddingX * 2) * k, 5);
+  if (lines.length === 0) return;
+
+  const stripH = Math.max(6.4, lines.length * lineHeightMm + paddingY * 2);
   const stripMm: RectMm = {
     xMm: rect.xMm + 1,
-    yMm: rect.yMm + rect.hMm - captionH - 1,
-    wMm: rect.wMm - 3.5,
-    hMm: captionH,
+    yMm: rect.yMm + rect.hMm - stripH - 1,
+    wMm: stripWidthMm,
+    hMm: stripH,
   };
   drawBox(ctx, stripMm, dpi, { fill: 'rgba(255,255,255,0.94)', border: '#8c8c8c', borderMm: 0.25 });
 
-  const size = fitFont(ctx, caption, (stripMm.wMm - 3) * k, 2.7, 600, dpi, 1.7);
-  ctx.font = font(size, 600, dpi);
+  ctx.font = font(fontSizeMm, 600, dpi);
   ctx.fillStyle = INK;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(caption, (stripMm.xMm + stripMm.wMm / 2) * k, (stripMm.yMm + stripMm.hMm / 2) * k);
+  const centerX = (stripMm.xMm + stripMm.wMm / 2) * k;
+  lines.forEach((line, index) => {
+    const yMm = stripMm.yMm + paddingY + lineHeightMm * (index + 0.5);
+    ctx.fillText(line, centerX, yMm * k);
+  });
 }
 
 /** Малює всі елементи аркуша (без зображень карт). */
@@ -388,5 +421,5 @@ export function drawSheet(ctx: CanvasRenderingContext2D, options: SheetDrawOptio
 
   if (visible.legend) drawLegend(ctx, layout.legend, dpi);
   if (visible.scaleBar) drawScaleBar(ctx, layout.scaleBar, scale, dpi);
-  if (visible.stamp) drawStamp(ctx, layout.stamp, texts, dpi);
+  if (visible.stamp) drawStamp(ctx, layout.stamp, dpi);
 }
