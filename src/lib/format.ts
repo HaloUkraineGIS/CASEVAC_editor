@@ -81,6 +81,15 @@ export function formatCoordinatePair([lon, lat]: LonLat): string {
   return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 }
 
+/** Довжина ламаної (маршруту) у кілометрах. */
+export function polylineLengthKm(points: LonLat[]): number {
+  let meters = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    meters += distanceMeters(points[index - 1], points[index]);
+  }
+  return meters / 1000;
+}
+
 /** Відстань між двома точками у метрах (формула гаверсинуса). */
 export function distanceMeters(a: LonLat, b: LonLat): number {
   const R = 6_371_000;

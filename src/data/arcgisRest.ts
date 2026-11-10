@@ -60,9 +60,16 @@ export interface PointGeometry {
   spatialReference: { wkid: number };
 }
 
+export interface PolylineGeometry {
+  type: 'polyline';
+  /** Масив шляхів; кожен шлях — масив пар [x, y]. */
+  paths: number[][][];
+  spatialReference: { wkid: number };
+}
+
 export interface FeatureEdit {
   attributes: Record<string, unknown>;
-  geometry?: PointGeometry | null;
+  geometry?: PointGeometry | PolylineGeometry | null;
 }
 
 export interface EditResult {

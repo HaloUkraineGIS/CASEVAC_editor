@@ -33,7 +33,7 @@ VITE_AUTH_MODE=portal
 VITE_PORTAL_URL=https://gis.htgoims.org/portal
 VITE_OAUTH_CLIENT_ID=UkLjSBHNNooE1jnb
 VITE_OAUTH_REDIRECT_URI=http://localhost:5173/CASEVAC_editor/
-VITE_WEBMAP_ID=f5c528f766ec467c9d7388787bc58698
+VITE_WEBMAP_ID=c9fbad0317544acfb982d52f8384bf9a
 ```
 
 Усі адреси, ID веб-карти, назви полів, пороги валідації та строки «потрібен візит» зібрані в `src/config/appConfig.ts`.

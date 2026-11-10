@@ -21,7 +21,7 @@ env:
   VITE_PORTAL_URL: ${{ vars.VITE_PORTAL_URL || 'https://gis.htgoims.org/portal' }}
   VITE_OAUTH_CLIENT_ID: ${{ vars.VITE_OAUTH_CLIENT_ID || 'UkLjSBHNNooE1jnb' }}
   VITE_OAUTH_REDIRECT_URI: ${{ vars.VITE_OAUTH_REDIRECT_URI || 'https://haloukrainegis.github.io/CASEVAC_editor/' }}
-  VITE_WEBMAP_ID: ${{ vars.VITE_WEBMAP_ID || 'f5c528f766ec467c9d7388787bc58698' }}
+  VITE_WEBMAP_ID: ${{ vars.VITE_WEBMAP_ID || 'c9fbad0317544acfb982d52f8384bf9a' }}
 
 jobs:
   build:

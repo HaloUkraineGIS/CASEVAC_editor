@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import esriConfig from '@arcgis/core/config.js';
 import type Collection from '@arcgis/core/core/Collection.js';
 import Point from '@arcgis/core/geometry/Point.js';
 import Graphic from '@arcgis/core/Graphic.js';
-import IdentityManager from '@arcgis/core/identity/IdentityManager.js';
 import type FeatureLayer from '@arcgis/core/layers/FeatureLayer.js';
 import type GroupLayer from '@arcgis/core/layers/GroupLayer.js';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer.js';
@@ -15,12 +13,13 @@ import MapView from '@arcgis/core/views/MapView.js';
 import WebMap from '@arcgis/core/WebMap.js';
 import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol.js';
 import Legend from '@arcgis/core/widgets/Legend.js';
-import { Layers3, Loader2, MapPinOff } from 'lucide-react';
+import { Layers3, Loader2, MapPinOff, Maximize2, Minimize2 } from 'lucide-react';
 import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useAuth } from '../auth/AuthContext';
 import { appConfig } from '../config/appConfig';
 import { isVisitStale } from '../lib/format';
 import { BASEMAP_OPTIONS, createBasemap, type BasemapKey } from '../lib/osmBasemap';
+import { registerPortalToken } from '../lib/portalToken';
 import type { FacilityRecord, LonLat } from '../types';
 
 interface FacilitiesMapProps {
@@ -32,6 +31,10 @@ interface FacilitiesMapProps {
   onSelect: (id: string) => void;
   /** Чи активний пошук: тоді шар веб-карти фільтрується за видимими закладами. */
   filterActive?: boolean;
+  /** Розгорнутий режим карти (на весь екран). */
+  expanded?: boolean;
+  /** Callback коли зміна стану розгортання. */
+  onToggleExpand?: () => void;
 }
 
 const VERIFIED_SYMBOL = new SimpleMarkerSymbol({
@@ -90,9 +93,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 /** Чи це шар медичних закладів (за назвою або URL сервісу). */
 function isMedicalLayer(candidate: { title?: string | null; url?: string | null }): boolean {
   const title = (candidate.title ?? '').toLowerCase();
-  if (title.includes('medical') && title.includes('facilit')) return true;
+  // Check for medical facilities layer by title (English or Ukrainian)
+  const titleMatch = title.includes('medical') ||
+    title.includes('медичних') ||
+    title.includes('заклад') ||
+    // Also check for partial matches like 'Medical' alone if no other match
+    title === 'medical';
+  if (titleMatch) return true;
   const url = (candidate.url ?? '').toLowerCase();
-  return url.length > 0 && url.startsWith(appConfig.services.facilities.url.toLowerCase());
+  // URL match against configured facilities service URL
+  const urlMatch = url.length > 0 && url.startsWith(appConfig.services.facilities.url.toLowerCase());
+  return urlMatch;
 }
 
 /**
@@ -169,30 +180,6 @@ function readObjectId(attributes: Record<string, unknown>, field: string): numbe
   return undefined;
 }
 
-/** Реєструє токен Portal для веб-карти та пов'язаних сервісів. */
-function registerPortalToken(token: string, expiresAt: number): void {
-  esriConfig.portalUrl = appConfig.portalUrl;
-  const expires = expiresAt > Date.now() ? expiresAt : undefined;
-  IdentityManager.registerToken({
-    server: `${appConfig.portalUrl}/sharing/rest`,
-    token,
-    expires,
-    ssl: true,
-  });
-  IdentityManager.registerToken({
-    server: 'https://gis-services.htgoims.org/arcgis/rest/services',
-    token,
-    expires,
-    ssl: true,
-  });
-  IdentityManager.registerToken({
-    server: 'https://gis.htgoims.org/server/rest/services',
-    token,
-    expires,
-    ssl: true,
-  });
-}
-
 /**
  * Підбирає центр і масштаб, щоб усі заклади вмістилися у вікні карти.
  *
@@ -245,6 +232,8 @@ export function FacilitiesMap({
   selectedId,
   onSelect,
   filterActive = false,
+  expanded = false,
+  onToggleExpand,
 }: FacilitiesMapProps) {
   const { session } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -351,6 +340,7 @@ export function FacilitiesMap({
   useEffect(() => {
     let cancelled = false;
     let view: MapView | null = null;
+    let observer: ResizeObserver | null = null;
 
     const focusAll = () => {
       if (!view || focusedOnceRef.current) return;
@@ -437,6 +427,15 @@ export function FacilitiesMap({
         await new Promise((resolve) => setTimeout(resolve, 0));
         if (cancelled || !containerRef.current) return;
 
+        // Карта живе і в панелі, і в розгорнутому режимі — підганяємо розмір під контейнер.
+        if (typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(() => {
+            const current = viewRef.current as unknown as { resize?: () => void } | null;
+            current?.resize?.();
+          });
+          observer.observe(containerRef.current);
+        }
+
         if (!token) {
           startFallback('Демо-режим: веб-карта Portal потребує входу.');
           return;
@@ -509,6 +508,7 @@ export function FacilitiesMap({
 
     return () => {
       cancelled = true;
+      observer?.disconnect();
       viewRef.current = null;
       mapRef.current = null;
       graphicsRef.current = null;
@@ -557,14 +557,33 @@ export function FacilitiesMap({
     void view.goTo({ center: facility.location, zoom: Math.max(view.zoom, 10) });
   }, [selectedId, status]);
 
+  // Escape згортає розгорнуту карту.
+  useEffect(() => {
+    if (!expanded || !onToggleExpand) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onToggleExpand();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [expanded, onToggleExpand]);
+
+  // Розгорнута карта блокує прокручування сторінки під нею.
+  useEffect(() => {
+    if (!expanded) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [expanded]);
+
   return (
-    <div className="facility-map-wrap facilities-map">
+    <div className={`facility-map-wrap facilities-map ${expanded ? 'facilities-map-expanded' : ''}`}>
       <div ref={containerRef} className="facility-map" />
       {status !== 'error' && (
         <div className="facility-map-controls">
           <div className="facility-map-control-row">
             <label className="facility-basemap-control">
-              <span>Підкладка</span>
               <select
                 value={basemapKey}
                 onChange={(event) => setBasemapKey(event.target.value as BasemapKey)}
@@ -588,6 +607,18 @@ export function FacilitiesMap({
               >
                 <Layers3 size={13} />
                 Легенда
+              </button>
+            )}
+            {onToggleExpand && (
+              <button
+                type="button"
+                className="facility-legend-toggle facilities-map-expand"
+                onClick={onToggleExpand}
+                aria-label={expanded ? 'Згорнути карту' : 'Розгорнути карту на весь екран'}
+                title={expanded ? 'Згорнути карту' : 'Розгорнути на весь екран'}
+              >
+                {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                <span>{expanded ? 'Згорнути' : 'На весь екран'}</span>
               </button>
             )}
           </div>

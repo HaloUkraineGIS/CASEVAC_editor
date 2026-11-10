@@ -1395,6 +1395,15 @@ select:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.table-task-name {
+  max-width: 190px;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 600;
+  color: #40524a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .type-badge {
   display: inline-flex;
   align-items: center;
@@ -2206,7 +2215,7 @@ select:focus-visible {
     padding-right: 43px;
   }
   .workspace-grid {
-    grid-template-columns: minmax(500px, 1.55fr) minmax(360px, 0.86fr);
+    grid-template-columns: minmax(500px, 1.55fr) minmax(320px, 0.88fr);
   }
   .map-stage {
     height: 385px;
@@ -2313,7 +2322,7 @@ select:focus-visible {
     justify-content: flex-end;
   }
   .route-table {
-    min-width: 700px;
+    min-width: 710px;
   }
 }
 @media (max-width: 760px) {
@@ -3871,6 +3880,32 @@ select:focus-visible {
   font-size: 9px;
   line-height: 1.3;
 }
+/* Список шарів: не перекриває власні кнопки карти у верхньому правому куті. */
+.routes-map .esri-layer-list {
+  max-width: 230px;
+  max-height: 60%;
+  margin-top: 42px;
+  padding: 5px 8px 6px;
+  border-radius: 7px;
+  box-shadow: 0 3px 10px #15231f1f;
+  font-size: 9px;
+  line-height: 1.35;
+}
+.routes-map .esri-layer-list__item {
+  padding: 2px 0;
+}
+.routes-map .esri-layer-list__item-title {
+  font-size: 9.5px;
+}
+.routes-map .esri-layer-list__item-container {
+  padding: 2px 3px;
+}
+.routes-map .esri-layer-list__child-toggle {
+  width: 13px;
+}
+.routes-map-expanded .esri-layer-list {
+  max-height: 70%;
+}
 /* Легенда демо-режиму: позначення з фактичних символів шарів карти. */
 .routes-map-legend {
   position: absolute;
@@ -3936,30 +3971,36 @@ select:focus-visible {
   font-size: 10px;
 }
 
-/* Розгорнута карта: модальне вікно поверх сторінки */
+/* Розгорнута карта: спільні стилі для сторінок «Медичні заклади» та «Маршрути CASEVAC» */
+.facilities-map-backdrop,
 .routes-map-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 999;
   background: #0b1a1440;
   backdrop-filter: blur(2px);
 }
+.facility-map-wrap.facilities-map-expanded,
 .facility-map-wrap.routes-map-expanded {
   position: fixed;
   inset: 22px;
-  z-index: 71;
-  width: auto;
-  height: auto;
-  min-height: 0;
+  z-index: 1000;
+  isolation: isolate;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   border-radius: 12px;
   border-color: #cddbd3;
   box-shadow: 0 24px 70px #08191266;
 }
+.facilities-map-expanded .facility-map-controls,
 .routes-map-expanded .facility-map-controls {
   top: 14px;
   right: 14px;
 }
 @media (max-width: 760px) {
+  .facility-map-wrap.facilities-map-expanded,
   .facility-map-wrap.routes-map-expanded {
     inset: 8px;
   }
@@ -4022,6 +4063,26 @@ select:focus-visible {
 }
 .routes-page .search-field-small {
   width: 168px;
+}
+.routes-page .routes-facility-select {
+  width: 180px;
+}
+.routes-page .routes-facility-select .search-select-trigger {
+  height: 32px;
+  font-size: 10.5px;
+}
+.routes-page .routes-facility-select .search-select-menu {
+  min-width: 240px;
+}
+.routes-reset-filters {
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.routes-reset-filters svg {
+  flex: 0 0 auto;
 }
 .routes-page .route-table th {
   height: 32px;
@@ -4291,7 +4352,6 @@ select:focus-visible {
   max-height: calc(100vh - 150px);
 }
 
-
 /* Вузьке за висотою вікно: компактні деталі маршруту, кнопки експорту лишаються видимими */
 @media (min-width: 761px) and (max-height: 820px) {
   .page-content.routes-page {
@@ -4303,7 +4363,7 @@ select:focus-visible {
   .routes-page .page-heading p {
     display: none;
   }
-  .routes-page .routes-toolbar-title {
+  .routes-toolbar-title {
     display: none;
   }
   .routes-toolbar {
@@ -4333,8 +4393,8 @@ select:focus-visible {
 
 /* Середня ширина: ховаємо колонку статусу, щоб таблиця не стискалася */
 @media (min-width: 761px) and (max-width: 1050px) {
-  .routes-page .route-table th:nth-child(3),
-  .routes-page .route-table td:nth-child(3) {
+  .routes-page .route-table th:nth-child(4),
+  .routes-page .route-table td:nth-child(4) {
     display: none;
   }
 }
@@ -4360,16 +4420,16 @@ select:focus-visible {
     table-layout: fixed;
   }
   .routes-page .route-table th:nth-child(1) {
-    width: 27%;
+    width: 20%;
   }
   .routes-page .route-table th:nth-child(2) {
-    width: 39%;
+    width: 22%;
   }
-  .routes-page .route-table th:nth-child(4) {
-    width: 17%;
+  .routes-page .route-table th:nth-child(3) {
+    width: 34%;
   }
   .routes-page .route-table th:nth-child(5) {
-    width: 17%;
+    width: 18%;
   }
   .routes-page .route-table th:nth-child(6),
   .routes-page .route-table td:nth-child(6) {
@@ -4396,6 +4456,9 @@ select:focus-visible {
   }
   .routes-page .routes-map-stage {
     height: 300px;
+  }
+  .routes-reset-filters span {
+    display: none;
   }
 }
 
@@ -4435,7 +4498,9 @@ select:focus-visible {
 }
 .print-export-header h2 {
   margin: 5px 0 2px;
-  font: 700 17px Manrope, sans-serif;
+  font:
+    700 17px Manrope,
+    sans-serif;
   color: #283a32;
   letter-spacing: -0.02em;
 }
@@ -4600,4 +4665,566 @@ select:focus-visible {
     border-right: 0;
     border-bottom: 1px solid #e8edea;
   }
+}
+
+/* =========================================================
+   Створення маршруту CASEVAC: повноекранна карта
+   ========================================================= */
+.route-builder {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  background: #f3f6f4;
+}
+.route-builder-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e8edea;
+}
+.route-builder-header h2 {
+  margin: 0 0 2px;
+  font:
+    700 17px Manrope,
+    sans-serif;
+  color: #283a32;
+  letter-spacing: -0.02em;
+}
+.route-builder-header p {
+  margin: 0;
+  font-size: 11px;
+  color: #84918b;
+}
+.route-builder-close {
+  flex: 0 0 auto;
+}
+.route-builder-body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.route-builder-panel {
+  display: flex;
+  flex: 0 0 348px;
+  flex-direction: column;
+  width: 348px;
+  min-height: 0;
+  background: #fff;
+  border-right: 1px solid #e8edea;
+}
+.route-builder-panel-scroll {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 18px;
+  align-content: start;
+  min-width: 0;
+  padding: 16px 16px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.route-builder-section {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+.route-builder-section .form-label {
+  min-width: 0;
+}
+.route-builder-section .form-label select,
+.route-builder-section .form-label input {
+  width: 100%;
+  min-width: 0;
+}
+.route-builder-note {
+  min-width: 0;
+}
+.route-builder-section-title {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #4f9271;
+  text-transform: uppercase;
+}
+.route-builder-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.route-builder-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #4f9271;
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.route-builder-link:hover {
+  color: #147d61;
+}
+.route-builder-auto {
+  display: grid;
+  gap: 7px;
+}
+.route-builder-auto .button {
+  width: 100%;
+}
+.route-builder-route-meta,
+.route-builder-route-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.route-builder-route-meta {
+  background: #eef7f2;
+  border: 1px solid #cfe8db;
+  color: #1d6b4f;
+}
+.route-builder-route-warning {
+  background: #fdf5e8;
+  border: 1px solid #f0ddb8;
+  color: #8a5a1c;
+}
+.route-builder-route-meta svg,
+.route-builder-route-warning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.route-builder-choice {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 20% 15%, #e8f3ed 0%, transparent 55%),
+    linear-gradient(160deg, #f7faf8 0%, #eef4f1 100%);
+  overflow-y: auto;
+}
+.route-builder-choice-inner {
+  width: min(620px, 100%);
+}
+.route-builder-choice-inner h3 {
+  margin: 0 0 6px;
+  font: 700 20px Manrope, sans-serif;
+  color: #26392f;
+  letter-spacing: -0.02em;
+}
+.route-builder-choice-inner > p {
+  margin: 0 0 18px;
+  color: #7b8a83;
+  font-size: 12px;
+}
+.route-builder-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.route-builder-choice-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid #dfe8e3;
+  border-radius: 12px;
+  background: #ffffffeb;
+  box-shadow: 0 8px 24px #1b2a2412;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.route-builder-choice-card:hover,
+.route-builder-choice-card:focus-visible {
+  border-color: #8cc4a8;
+  box-shadow: 0 10px 28px #1b2a241c;
+  outline: none;
+  transform: translateY(-1px);
+}
+.route-builder-choice-card strong {
+  font: 700 14px Manrope, sans-serif;
+  color: #283a32;
+}
+.route-builder-choice-card > span:last-child {
+  color: #7b8a83;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.route-builder-choice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eef4f1;
+  color: #147d61;
+}
+.route-builder-choice-card-accent {
+  border-color: #b9dccb;
+  background: linear-gradient(150deg, #f2faf6 0%, #ffffff 70%);
+}
+.route-builder-choice-card-accent .route-builder-choice-icon {
+  background: #147d61;
+  color: #fff;
+}
+@media (max-width: 720px) {
+  .route-builder-choice {
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .route-builder-choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.route-builder-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  background: #f1f5f3;
+  border-radius: 8px;
+}
+.route-builder-modes button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64746d;
+  font-size: 11px;
+  font-weight: 600;
+}
+.route-builder-modes button.active {
+  background: #fff;
+  color: #147d61;
+  box-shadow: 0 1px 4px #1b2a241f;
+}
+.route-builder-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.route-builder-stats div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  background: #f6f9f7;
+  border: 1px solid #e8eeeb;
+  border-radius: 7px;
+}
+.route-builder-stats span {
+  font-size: 9.5px;
+  color: #84918b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.route-builder-stats strong {
+  font:
+    700 14px Manrope,
+    sans-serif;
+  color: #283a32;
+}
+.route-builder-note {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #7c8986;
+}
+.route-builder-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.route-builder-error {
+  padding: 9px 11px;
+  background: #fdf1ee;
+  border: 1px solid #f0d5cf;
+  border-radius: 7px;
+  color: #a84a35;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.route-builder-actions {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(88px, auto) minmax(132px, 1fr);
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 64px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid #e8edea;
+  background: #fff;
+  box-sizing: border-box;
+}
+.route-builder-actions .button {
+  min-width: 0;
+  white-space: nowrap;
+}
+.route-builder-actions .button-primary {
+  width: 100%;
+  min-width: 132px;
+}
+.route-builder-map {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  overflow: hidden;
+  background: #dfe7e3;
+}
+.route-builder-map-view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.route-builder-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  z-index: 2;
+  max-width: calc(100% - 280px);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #5b6b64;
+  font-size: 11px;
+  transform: translateX(-50%);
+}
+/* Керування картою планувальника: кнопки та легенда стоять одним стовпцем,
+   тому не накладаються одна на одну. */
+.route-builder-controls {
+  align-items: flex-end;
+  max-width: calc(100% - 90px);
+}
+.route-builder-controls .facility-map-control-row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.route-builder-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 9px;
+  border: 1px solid #dfe8e3;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 3px 10px #15231f14;
+  color: #5b6b64;
+  font-size: 10px;
+}
+.route-builder-legend span {
+  display: inline-flex;
+  align-items: center;
+}
+.route-builder-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.5px #15231f33;
+}
+.route-builder-dot-start {
+  background: #d68b4a;
+}
+.route-builder-dot-facility {
+  background: #4a7598;
+}
+.route-builder-line {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  margin-right: 4px;
+  border-radius: 2px;
+  background: #c62828;
+}
+/* Віджети ArcGIS (легенда й список шарів) у нижньому правому куті карти. */
+.route-builder-map .esri-legend,
+.route-builder-map .esri-layer-list {
+  max-width: 230px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 5px 8px 6px;
+  border-radius: 7px;
+  box-shadow: 0 3px 10px #15231f1f;
+  font-size: 9px;
+  line-height: 1.35;
+}
+.route-builder-map .esri-legend {
+  max-height: 38%;
+}
+.route-builder-map .esri-layer-list {
+  max-height: 44%;
+}
+.route-builder-map .esri-layer-list__item {
+  padding: 2px 0;
+}
+.route-builder-map .esri-layer-list__item-title {
+  font-size: 9.5px;
+}
+
+/* Випадаючі списки зі швидким пошуком у планувальнику маршрутів */
+.search-select {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.search-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 37px;
+  padding: 0 10px;
+  border: 1px solid #e1e9e4;
+  border-radius: 6px;
+  background: #fff;
+  color: #51615a;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+}
+.search-select-trigger:hover {
+  border-color: #cbded4;
+}
+.search-select-trigger.is-open {
+  border-color: #7fb59d;
+  box-shadow: 0 0 0 3px rgba(36, 141, 111, 0.12);
+}
+.search-select-value {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-select-value.is-placeholder {
+  color: #9ca8a2;
+}
+.search-select-chevron {
+  flex: 0 0 auto;
+  color: #7b8a83;
+  transition: transform 0.15s;
+}
+.search-select-trigger.is-open .search-select-chevron {
+  transform: rotate(180deg);
+}
+.search-select-menu {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px;
+  border: 1px solid #dfe8e3;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 6px 18px #15231f1f;
+}
+/* У панелях інструментів список накладається поверх вмісту. */
+.search-select.is-popover .search-select-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  min-width: 100%;
+  max-width: 320px;
+}
+.search-select-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #e1e9e4;
+  border-radius: 6px;
+  background: #f8fbf9;
+  color: #7b8a83;
+}
+.search-select-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #40524a;
+  font-size: 11px;
+}
+.search-select-clear {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #7b8a83;
+}
+.search-select-clear:hover {
+  background: #e8f1ec;
+  color: #3f6b56;
+}
+.search-select-list {
+  max-height: 190px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.search-select-option {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #41544b;
+  font-size: 11px;
+  text-align: left;
+  white-space: normal;
+}
+.search-select-option:hover {
+  background: #f2f8f4;
+}
+.search-select-option.is-selected {
+  background: #e9f5ef;
+  color: #147d61;
+  font-weight: 600;
+}
+.search-select-empty {
+  margin: 0;
+  padding: 8px;
+  color: #8a9790;
+  font-size: 10.5px;
+  text-align: center;
 }

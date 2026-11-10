@@ -3,6 +3,11 @@ import type MapView from '@arcgis/core/views/MapView.js';
 import { useToast } from './ToastContext';
 import { Download, Loader2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
+import type { SymbolUnion } from '@arcgis/core/symbols/types.js';
+import { useAuth } from '../auth/AuthContext';
+import { appConfig } from '../config/appConfig';
+import { resolveLayerPointSymbol } from '../lib/layerSymbols';
+import { symbolPreviewImage } from '../lib/symbolImages';
 import type { FacilityRecord, LonLat, MinefieldRecord, RouteRecord } from '../types';
 import {
   a4Page,
@@ -10,6 +15,7 @@ import {
   clampRect,
   DEFAULT_INSET_SCALE,
   defaultLayout,
+  fitScaleBarRect,
   INSET_SCALE_OPTIONS,
   MAIN_SCALE_OPTIONS,
   mapFrame,
@@ -75,6 +81,8 @@ async function loadSvg(url: string): Promise<HTMLImageElement> {
 
 export function RouteMapExportModal({ route, facility, minefield, onClose }: RouteMapExportModalProps) {
   const { notify } = useToast();
+  const { session } = useAuth();
+  const token = session?.token ?? null;
 
   const [orientation, setOrientation] = useState<Orientation>('landscape');
   const page = useMemo(() => a4Page(orientation), [orientation]);
@@ -96,15 +104,58 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
     initialRect: RectMm;
   } | null>(null);
 
-  // Оновлюємо розкладку за замовчуванням при зміні орієнтації
-  useEffect(() => {
-    setLayout(defaultLayout(page));
-  }, [orientation]);
-
   const facilityPoint = useMemo<LonLat>(
     () => facility?.location ?? route.geometry[route.geometry.length - 1] ?? ([31.0, 49.3] as LonLat),
     [facility, route.geometry],
   );
+
+  // Умовні позначення точок беремо з шарів карти маршрутів: медичний заклад —
+  // з шару закладів, початкова точка — з шару «Точки початку евакуації».
+  // Якщо символ не вдалося визначити, лишаються стандартні позначки.
+  const facilityAttributes = useMemo<Record<string, unknown>>(() => facility?.attributes ?? {}, [facility]);
+  const [facilitySymbol, setFacilitySymbol] = useState<SymbolUnion | null>(null);
+  const [startSymbol, setStartSymbol] = useState<SymbolUnion | null>(null);
+
+  // Ті самі символи, але як зображення — для легенди на аркуші PDF.
+  const [facilityLegendImage, setFacilityLegendImage] = useState<HTMLImageElement | null>(null);
+  const [startLegendImage, setStartLegendImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!token) {
+      setFacilitySymbol(null);
+      setStartSymbol(null);
+      setFacilityLegendImage(null);
+      setStartLegendImage(null);
+      return;
+    }
+
+    void resolveLayerPointSymbol('facility', {
+      url: appConfig.services.facilities.url,
+      token,
+      attributes: facilityAttributes,
+    }).then(async (symbol) => {
+      const image = await symbolPreviewImage(symbol);
+      if (cancelled) return;
+      setFacilitySymbol(symbol);
+      setFacilityLegendImage(image);
+    });
+
+    void resolveLayerPointSymbol('start', {
+      url: appConfig.services.startPoints.url,
+      token,
+    }).then(async (symbol) => {
+      const image = await symbolPreviewImage(symbol);
+      if (cancelled) return;
+      setStartSymbol(symbol);
+      setStartLegendImage(image);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, facilityAttributes]);
 
   // Об'єднуємо всі опорні точки: геометрію маршруту, заклад і мінне поле
   const allPoints = useMemo<LonLat[]>(() => {
@@ -132,6 +183,27 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
   const [insetCustomText, setInsetCustomText] = useState('');
 
   const currentScale = userScale === 'auto' ? calculatedAutoScale : userScale;
+
+  // Оновлюємо розкладку за замовчуванням при зміні орієнтації.
+  useEffect(() => {
+    setLayout(defaultLayout(page, currentScale));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orientation]);
+
+  // Рамка масштабної лінійки має розмір під довжину смуги для поточного
+  // масштабу. Правий нижній кут зберігається, зокрема після перетягування.
+  useEffect(() => {
+    setLayout((prev) => {
+      const next = fitScaleBarRect(prev.scaleBar, page, currentScale);
+      const current = prev.scaleBar;
+      const unchanged =
+        current.xMm === next.xMm &&
+        current.yMm === next.yMm &&
+        current.wMm === next.wMm &&
+        current.hMm === next.hMm;
+      return unchanged ? prev : { ...prev, scaleBar: next };
+    });
+  }, [currentScale, page]);
 
   // Тексти для шапки, підписів та таблиці штампу
   const texts = useMemo<SheetTexts>(() => {
@@ -178,6 +250,8 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
       showLabels: true,
       center: bboxCenter,
       scale: currentScale,
+      facilitySymbol,
+      startSymbol,
     });
 
     mainViewRef.current = main;
@@ -196,7 +270,7 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
       main.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route.id, facilityPoint, orientation]);
+  }, [route.id, facilityPoint, orientation, facilitySymbol, startSymbol]);
 
   // === Врізка із закладом (Inset Map) ===
   const insetMapRef = useRef<HTMLDivElement>(null);
@@ -217,6 +291,8 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
       showLabels: false,
       center: facilityPoint,
       scale: insetScale,
+      facilitySymbol,
+      startSymbol,
     });
 
     insetViewRef.current = inset;
@@ -233,7 +309,7 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
       inset.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route.id, facilityPoint, orientation]);
+  }, [route.id, facilityPoint, orientation, facilitySymbol, startSymbol]);
 
   // === Малювання елементів аркуша на попередньому перегляді ===
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -334,6 +410,10 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
       dpi: 96,
       logo: logoImg,
       northArrow: northImg,
+      legendSymbols: {
+        facility: facilityLegendImage,
+        start: startLegendImage,
+      },
     });
 
     // Якщо активний режим переміщення елементів — малюємо пунктирні контури
@@ -373,6 +453,8 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
     insetScale,
     logoImg,
     northImg,
+    facilityLegendImage,
+    startLegendImage,
     mapPanEnabled,
     draggingId,
     hoveredId,
@@ -526,6 +608,10 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
         dpi: EXPORT_DPI,
         logo: logoImg,
         northArrow: northImg,
+        legendSymbols: {
+          facility: facilityLegendImage,
+          start: startLegendImage,
+        },
       });
 
       // Формуємо JPEG та загортаємо в PDF
@@ -676,7 +762,7 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
                 type="button"
                 className="button button-secondary"
                 style={{ fontSize: 11, padding: '4px 8px', alignSelf: 'flex-start', marginTop: -4 }}
-                onClick={() => setLayout(defaultLayout(page))}
+                onClick={() => setLayout(defaultLayout(page, currentScale))}
                 title="Повернути початкове розташування елементів"
               >
                 Скинути позиції

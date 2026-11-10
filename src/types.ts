@@ -8,9 +8,13 @@ export type LonLat = [number, number];
 export interface RouteRecord {
   /** globalid маршруту (у демо-режимі — локальний ідентифікатор). */
   id: string;
+  /** OBJECTID для операцій редагування ArcGIS. */
+  objectId?: number;
   /** task_code мінного поля, до якого прив'язаний маршрут. */
   code: string;
   taskId: string;
+  /** Назва завдання (task_name) з сервісу маршрутів CASEVAC. */
+  taskName: string;
   facilityId: string;
   facilityName: string;
   isCurrent: boolean;
@@ -141,6 +145,8 @@ export interface RouteDraft {
   facilityId: string;
   surveyedBy: string;
   surveyDate: string;
+  /** Лінія маршруту у WGS84: початкова точка ділянки → медичний заклад. */
+  geometry: LonLat[];
 }
 
 export interface FacilityDraft {
@@ -157,7 +163,8 @@ export interface DataCapabilities {
   editFacility: boolean;
   deleteFacility: boolean;
   createRoute: boolean;
-  editRouteGeometry: boolean;
+  editRoute: boolean;
+  deleteRoute: boolean;
   writeStartPoints: boolean;
 }
 
@@ -171,4 +178,6 @@ export interface DataSource {
   updateFacility?: (record: FacilityRecord, draft: FacilityDraft) => Promise<FacilityRecord>;
   deleteFacility?: (record: FacilityRecord) => Promise<void>;
   createRoute?: (draft: RouteDraft) => Promise<RouteRecord>;
+  updateRoute?: (record: RouteRecord, draft: RouteDraft) => Promise<RouteRecord>;
+  deleteRoute?: (record: RouteRecord) => Promise<void>;
 }

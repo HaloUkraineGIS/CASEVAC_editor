@@ -14,12 +14,12 @@ import Map from '@arcgis/core/Map.js';
 import MapView from '@arcgis/core/views/MapView.js';
 import SimpleLineSymbol from '@arcgis/core/symbols/SimpleLineSymbol.js';
 import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol.js';
+import type { SymbolUnion } from '@arcgis/core/symbols/types.js';
 import { distanceMeters } from './format';
 import { niceScale } from './printLayout';
 import type { LonLat } from '../types';
 
-const ESRI_WORLD_IMAGERY =
-  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer';
+const ESRI_WORLD_IMAGERY = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer';
 
 const ROUTE_SYMBOL = new SimpleLineSymbol({
   color: [229, 57, 53, 1],
@@ -64,6 +64,10 @@ export interface SheetMapOptions {
   showLabels: boolean;
   center: LonLat;
   scale: number;
+  /** Символ медичного закладу з шару карти; без нього — стандартний синій круг. */
+  facilitySymbol?: SymbolUnion | null;
+  /** Символ початкової точки з шару «Точки початку евакуації». */
+  startSymbol?: SymbolUnion | null;
 }
 
 function imageryBasemap(): Basemap {
@@ -76,6 +80,8 @@ function imageryBasemap(): Basemap {
 function buildGraphics(options: SheetMapOptions): Graphic[] {
   const graphics: Graphic[] = [];
   const { routeGeometry, facilityPoint, showLabels } = options;
+  const facilitySymbol = options.facilitySymbol ?? FACILITY_SYMBOL;
+  const startSymbol = options.startSymbol ?? START_SYMBOL;
 
   if (routeGeometry.length >= 2) {
     graphics.push(
@@ -100,19 +106,26 @@ function buildGraphics(options: SheetMapOptions): Graphic[] {
         latitude: facilityPoint[1],
         spatialReference: { wkid: 4326 },
       } as any,
-      symbol: FACILITY_SYMBOL,
-    }),
-    new Graphic({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      geometry: {
-        type: 'point',
-        longitude: facilityPoint[0],
-        latitude: facilityPoint[1],
-        spatialReference: { wkid: 4326 },
-      } as any,
-      symbol: FACILITY_LETTER,
+      symbol: facilitySymbol,
     }),
   );
+
+  // Літеру «H» домальовуємо лише до стандартного круга: у символу зі шару
+  // власна графіка, і текст поверх нього був би зайвим.
+  if (!options.facilitySymbol) {
+    graphics.push(
+      new Graphic({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        geometry: {
+          type: 'point',
+          longitude: facilityPoint[0],
+          latitude: facilityPoint[1],
+          spatialReference: { wkid: 4326 },
+        } as any,
+        symbol: FACILITY_LETTER,
+      }),
+    );
+  }
 
   if (routeGeometry.length > 0) {
     const start = routeGeometry[0];
@@ -125,7 +138,7 @@ function buildGraphics(options: SheetMapOptions): Graphic[] {
           latitude: start[1],
           spatialReference: { wkid: 4326 },
         } as any,
-        symbol: START_SYMBOL,
+        symbol: startSymbol,
       }),
     );
 
@@ -205,11 +218,7 @@ export function createSheetView(container: HTMLDivElement, options: SheetMapOpti
 }
 
 /** Переходить до потрібного центру й масштабу без анімації. */
-export async function applyViewScale(
-  view: MapView,
-  center: LonLat,
-  scale: number,
-): Promise<void> {
+export async function applyViewScale(view: MapView, center: LonLat, scale: number): Promise<void> {
   await view.goTo(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     { center: center as any, scale },

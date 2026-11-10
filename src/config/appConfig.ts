@@ -14,11 +14,20 @@ const env = import.meta.env;
 
 const DEFAULT_PORTAL_URL = 'https://gis.htgoims.org/portal';
 const DEFAULT_CLIENT_ID = 'UkLjSBHNNooE1jnb';
-const DEFAULT_WEBMAP_ID = 'f5c528f766ec467c9d7388787bc58698';
+const DEFAULT_WEBMAP_ID = 'c9fbad0317544acfb982d52f8384bf9a';
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
+
+/** Читає додатне число зі змінної середовища; інакше повертає типовий варіант. */
+function numberEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const DEFAULT_ROUTING_ARCGIS_URL =
+  'https://gis.htgoims.org/portal/sharing/servers/ecad41490e704f8680c3468c0b2f7c6b/rest/services/World/Route/NAServer/Route_World';
 
 /** Адреса, на яку Portal повертає користувача після входу. */
 function defaultRedirectUri(): string {
@@ -27,7 +36,7 @@ function defaultRedirectUri(): string {
 }
 
 export const appConfig = {
-  version: '0.3.6',
+  version: '0.5.1',
 
   /**
    * 'demo'  — локальні демонстраційні дані, вхід не потрібен (типово для розробки);
@@ -88,6 +97,19 @@ export const appConfig = {
     },
   },
 
+  routing: {
+    /**
+     * 'arcgis' — Network Analysis на Portal (основний варіант);
+     * 'osrm'   — публічний або власний OSRM (для демо/розробки).
+     */
+    provider: (env.VITE_ROUTING_PROVIDER === 'osrm' ? 'osrm' : 'arcgis') as 'arcgis' | 'osrm',
+    arcgisUrl: trimTrailingSlash(env.VITE_ROUTING_ARCGIS_URL ?? DEFAULT_ROUTING_ARCGIS_URL),
+    osrmUrl: trimTrailingSlash(env.VITE_ROUTING_OSRM_URL ?? 'https://router.project-osrm.org'),
+    timeoutMs: numberEnv(env.VITE_ROUTING_TIMEOUT_MS, 12_000),
+    /** Допуск спрощення геометрії, метри. */
+    simplifyToleranceMeters: numberEnv(env.VITE_ROUTING_SIMPLIFY_METERS, 20),
+  },
+
   validation: {
     /** Максимальна відстань від кінця лінії до поля/закладу, метри. */
     routeEndpointToleranceMeters: 500,
@@ -109,6 +131,7 @@ export const appConfig = {
     routes: {
       taskId: 'task_id',
       taskCode: 'task_code',
+      taskName: 'task_name',
       facilityGuid: 'med_facility_guid',
       isCurrent: 'is_current',
       surveyedBy: 'surveyed_by',

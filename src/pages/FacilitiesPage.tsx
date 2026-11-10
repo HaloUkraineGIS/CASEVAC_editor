@@ -3,10 +3,8 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
-  ChevronDown,
   ChevronRight,
   Hospital,
-  Layers3,
   Map,
   MapPin,
   Pencil,
@@ -14,7 +12,6 @@ import {
   Power,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   Stethoscope,
   Trash2,
   X,
@@ -65,13 +62,13 @@ function visitHint(facility: FacilityRecord): string {
 }
 
 export function FacilitiesPage() {
-  const { snapshot, source, reload, createFacility, updateFacility, deleteFacility } = useData();
+  const { snapshot, source, createFacility, updateFacility, deleteFacility } = useData();
   const { user } = useAuth();
   const { notify } = useToast();
   const { facilities, routes, medics, facilitySchema: schema } = snapshot;
 
   const [query, setQuery] = useState('');
-  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('active');
   const [viewId, setViewId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
@@ -83,6 +80,7 @@ export function FacilitiesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FacilityRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const canCreate = schema?.capabilities.create ?? source?.capabilities.createFacility === true;
   const canUpdate = schema?.capabilities.update ?? source?.capabilities.editFacility === true;
@@ -96,9 +94,9 @@ export function FacilitiesPage() {
         case 'active':
           return facility.isActive;
         case 'verified':
-          return !isVisitStale(facility.lastVisitDate);
+          return facility.isActive && !isVisitStale(facility.lastVisitDate);
         case 'visit':
-          return isVisitStale(facility.lastVisitDate);
+          return facility.isActive && isVisitStale(facility.lastVisitDate);
         case 'routed':
           return routes.some((route) => route.facilityId === facility.id);
         default:
@@ -237,11 +235,6 @@ export function FacilitiesPage() {
     }
   };
 
-  const handleReload = async () => {
-    const ok = await reload();
-    if (ok) notify('Дані оновлено з поточного джерела.');
-  };
-
   return (
     <div className="page-content facilities-page">
       <section className="page-heading">
@@ -250,10 +243,6 @@ export function FacilitiesPage() {
           <p>Актуальна інформація про лікарні та їхні можливості.</p>
         </div>
         <div className="heading-actions">
-          <button className="button button-secondary" onClick={() => void handleReload()}>
-            <Layers3 size={16} />
-            Оновити дані
-          </button>
           <button
             className="button button-primary"
             onClick={openCreate}
@@ -325,14 +314,6 @@ export function FacilitiesPage() {
               </div>
               <span className="section-subtitle">Картки закладів та атрибутивні дані</span>
             </div>
-            <button
-              className="button button-quiet"
-              onClick={() => notify('Групування буде додано пізніше.', 'info')}
-            >
-              <Building2 size={15} />
-              Групувати
-              <ChevronDown size={14} />
-            </button>
           </div>
           <div className="facility-toolbar">
             <div className="facility-toolbar-main">
@@ -355,13 +336,6 @@ export function FacilitiesPage() {
                   <X size={12} />
                 </button>
               )}
-              <button
-                className="icon-button filter-square"
-                onClick={() => notify('Розширені фільтри з’являться на наступному етапі.', 'info')}
-                aria-label="Фільтри"
-              >
-                <SlidersHorizontal size={17} />
-              </button>
             </div>
           </div>
           <div className="facilities-workspace">
@@ -473,8 +447,17 @@ export function FacilitiesPage() {
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   filterActive={filterIsNarrowed}
+                  expanded={mapExpanded}
+                  onToggleExpand={() => setMapExpanded((expanded) => !expanded)}
                 />
               </Suspense>
+              {mapExpanded && (
+                <div
+                  className="facilities-map-backdrop"
+                  onClick={() => setMapExpanded(false)}
+                  aria-hidden="true"
+                />
+              )}
               {selected ? (
                 <div className="facility-map-selected">
                   <div>

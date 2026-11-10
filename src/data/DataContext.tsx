@@ -33,6 +33,8 @@ interface DataContextValue {
   updateFacility: (record: FacilityRecord, draft: FacilityDraft) => Promise<FacilityRecord>;
   deleteFacility: (record: FacilityRecord) => Promise<void>;
   createRoute: (draft: RouteDraft) => Promise<RouteRecord>;
+  updateRoute: (record: RouteRecord, draft: RouteDraft) => Promise<RouteRecord>;
+  deleteRoute: (record: RouteRecord) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -127,6 +129,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [source, reload],
   );
 
+  const updateRoute = useCallback(
+    async (record: RouteRecord, draft: RouteDraft) => {
+      if (!source?.updateRoute) throw new Error('Редагування маршрутів недоступне в поточному режимі');
+      const updated = await source.updateRoute(record, draft);
+      await reload();
+      return updated;
+    },
+    [source, reload],
+  );
+
+  const deleteRoute = useCallback(
+    async (record: RouteRecord) => {
+      if (!source?.deleteRoute) throw new Error('Видалення маршрутів недоступне в поточному режимі');
+      await source.deleteRoute(record);
+      await reload();
+    },
+    [source, reload],
+  );
+
   const value = useMemo<DataContextValue>(
     () => ({
       status,
@@ -138,6 +159,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateFacility,
       deleteFacility,
       createRoute,
+      updateRoute,
+      deleteRoute,
     }),
     [
       status,
@@ -149,6 +172,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateFacility,
       deleteFacility,
       createRoute,
+      updateRoute,
+      deleteRoute,
     ],
   );
 

@@ -10,6 +10,7 @@ import {
   toInputValue,
   validateFacilityValues,
 } from '../lib/facilitySchema';
+import { polylineLengthKm, todayIso } from '../lib/format';
 import type {
   DataSnapshot,
   DataSource,
@@ -19,6 +20,7 @@ import type {
   FacilitySchema,
   LonLat,
   MinefieldRecord,
+  RouteDraft,
   RouteRecord,
   StartPointRecord,
 } from '../types';
@@ -27,8 +29,10 @@ import {
   describeLayer,
   queryAllFeatures,
   type Feature,
+  type LayerField,
   type LayerInfo,
   type PointGeometry,
+  type PolylineGeometry,
 } from './arcgisRest';
 
 type FieldMap = Record<string, string | null>;
@@ -36,6 +40,7 @@ type FieldMap = Record<string, string | null>;
 const ROUTE_CANDIDATES: Record<string, string[]> = {
   taskId: ['task_id', 'taskid'],
   taskCode: ['task_code', 'taskcode'],
+  taskName: ['task_name', 'taskname', 'task_name_ukr', 'tasknameukr'],
   facilityGuid: ['med_facility_guid', 'med_facility_globalid', 'facility_guid'],
   isCurrent: ['is_current', 'iscurrent', 'actual', 'is_active'],
   surveyedBy: ['surveyed_by', 'surveyedby', 'surveyed', 'created_by_medic'],
@@ -136,6 +141,61 @@ function pointGeometry([lon, lat]: LonLat): PointGeometry {
   return { x: lon, y: lat, spatialReference: { wkid: 4326 } };
 }
 
+function lineGeometry(points: LonLat[]): PolylineGeometry {
+  return {
+    type: 'polyline',
+    paths: [points.map(([lon, lat]) => [lon, lat])],
+    spatialReference: { wkid: 4326 },
+  };
+}
+
+/** Значення домену, яке позначає актуальний маршрут. */
+const CURRENT_DOMAIN_VALUE = /^(так|yes|true|1|actual|current|актуальн)/i;
+
+/** Значення домену, яке позначає неактуальний маршрут. */
+const INACTIVE_DOMAIN_VALUE = /^(ні|no|false|0|inactive|неактуальн)/i;
+
+/**
+ * Приводить значення до типу поля шару: коди домену, дата в мілісекундах,
+ * числа та рядки. Для кодованих полів без збігу повертає вихідне значення —
+ * виклик, що створює запис, окремо перевіряє такі випадки.
+ */
+function fieldValue(field: LayerField | undefined, value: unknown, preferDomain?: RegExp): unknown {
+  if (!field) return value;
+
+  const codedValues = field.domain?.type === 'codedValue' ? (field.domain.codedValues ?? []) : [];
+  if (codedValues.length > 0) {
+    const needle = String(value).trim().toLowerCase();
+    const direct = codedValues.find((option) => String(option.name).trim().toLowerCase() === needle);
+    if (direct) return direct.code;
+    if (preferDomain) {
+      const preferred = codedValues.find(
+        (option) => preferDomain.test(String(option.name)) || preferDomain.test(String(option.code)),
+      );
+      if (preferred) return preferred.code;
+    }
+    return value;
+  }
+
+  if (field.type === 'esriFieldTypeDate') {
+    const raw = String(value);
+    const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00Z` : raw);
+    return Number.isNaN(date.getTime()) ? null : date.getTime();
+  }
+
+  if (
+    field.type === 'esriFieldTypeInteger' ||
+    field.type === 'esriFieldTypeSmallInteger' ||
+    field.type === 'esriFieldTypeOID'
+  ) {
+    return Math.round(Number(value));
+  }
+  if (field.type === 'esriFieldTypeDouble' || field.type === 'esriFieldTypeSingle') {
+    return Number(value);
+  }
+  return String(value).trim();
+}
+
 function schemaCapabilities(layer: LayerInfo): FacilitySchema['capabilities'] {
   const enabled = appConfig.services.facilities.editable;
   const capabilities = layer.capabilities.toLowerCase();
@@ -227,6 +287,7 @@ export function createArcGisSource(token: string): DataSource {
   const authToken = requireToken(token);
   let snapshot: DataSnapshot | null = null;
   let facilitySchema: FacilitySchema | null = null;
+  let routesLayer: LayerInfo | null = null;
 
   const requireSchema = (): FacilitySchema => {
     if (!facilitySchema) throw new Error('Схема шару закладів ще не завантажена. Оновіть дані.');
@@ -261,6 +322,7 @@ export function createArcGisSource(token: string): DataSource {
     ]);
 
     facilitySchema = buildFacilitiesSchema(facilitiesLayerInfo);
+    routesLayer = routesLayerInfo;
     const schema = facilitySchema;
     const routeFields = resolveFields(routesLayerInfo, ROUTE_CANDIDATES);
     const minefieldFields: FieldMap = minefieldsLayerInfo
@@ -288,9 +350,7 @@ export function createArcGisSource(token: string): DataSource {
         address: display(fieldByName(schema, schema.core.address)),
         departments:
           display(fieldByName(schema, schema.core.departments)) || capabilitySummary(schema, attributes),
-        lastVisitDate: visitField
-          ? (toInputValue(visitField, attributes[visitField.name]) as string)
-          : '',
+        lastVisitDate: visitField ? (toInputValue(visitField, attributes[visitField.name]) as string) : '',
         visitedBy: display(fieldByName(schema, schema.core.visitedBy)),
         isActive: facilityIsActive(schema, attributes),
         location: pointFromGeometry(feature.geometry),
@@ -302,12 +362,16 @@ export function createArcGisSource(token: string): DataSource {
 
     const routes: RouteRecord[] = routeFeatures.map((feature, index) => {
       const attributes = feature.attributes;
+      const objectIdRaw = attributes[routesLayerInfo.objectIdField];
+      const objectId = typeof objectIdRaw === 'number' ? objectIdRaw : Number(objectIdRaw);
       const facilityGuid = readText(attributes, routeFields.facilityGuid);
       const facility = facilityById.get(facilityGuid);
       return {
         id: readText(attributes, routesLayerInfo.globalIdField) || `route-${index}`,
+        objectId: Number.isFinite(objectId) ? objectId : undefined,
         code: readText(attributes, routeFields.taskCode),
         taskId: readText(attributes, routeFields.taskId),
+        taskName: readText(attributes, routeFields.taskName),
         facilityId: facilityGuid,
         facilityName: facility?.name ?? 'Заклад не визначено',
         isCurrent: mapIsCurrent(readValue(attributes, routeFields.isCurrent)),
@@ -333,6 +397,12 @@ export function createArcGisSource(token: string): DataSource {
       attributes: feature.attributes,
     }));
 
+    // Якщо в шарі маршрутів немає поля task_name, беремо назву з мінного поля.
+    const minefieldNameByTaskId = new Map(minefields.map((minefield) => [minefield.taskId, minefield.name]));
+    routes.forEach((route) => {
+      if (!route.taskName) route.taskName = minefieldNameByTaskId.get(route.taskId) ?? '';
+    });
+
     const startPoints: StartPointRecord[] = [];
     startFeatures.forEach((feature: Feature, index) => {
       const location = pointFromGeometry(feature.geometry);
@@ -356,9 +426,6 @@ export function createArcGisSource(token: string): DataSource {
       ...facilities.map((facility) => facility.visitedBy),
     ]);
 
-    if (!routeFields.routeType) {
-      notices.push('Шар маршрутів: не знайдено поле типу маршруту — усі маршрути показано як основні.');
-    }
     if (!routeFields.isCurrent) {
       notices.push('Шар маршрутів: не знайдено поле актуальності — усі маршрути показано як актуальні.');
     }
@@ -417,10 +484,7 @@ export function createArcGisSource(token: string): DataSource {
     return recordFromValues(schema, attributes, draft.location, added.objectId, added.globalId);
   };
 
-  const updateFacility = async (
-    record: FacilityRecord,
-    draft: FacilityDraft,
-  ): Promise<FacilityRecord> => {
+  const updateFacility = async (record: FacilityRecord, draft: FacilityDraft): Promise<FacilityRecord> => {
     const schema = requireSchema();
     if (!schema.capabilities.update) throw new Error('Редагування закладів заборонено налаштуваннями шару.');
     if (record.objectId === undefined) {
@@ -471,6 +535,163 @@ export function createArcGisSource(token: string): DataSource {
     });
   };
 
+  /**
+   * Готує атрибути та геометрію для створення/оновлення маршруту.
+   * Значення приводяться до типів полів і доменів шару.
+   */
+  const buildRouteWrite = (
+    draft: RouteDraft,
+    isCurrent: boolean,
+    withCreatedAt: boolean,
+  ): {
+    attributes: Record<string, unknown>;
+    geometry: LonLat[];
+    lengthKm: number;
+    surveyDate: string;
+    objectIdField: string;
+  } => {
+    const layer = routesLayer;
+    if (!layer) throw new Error('Шар маршрутів ще не завантажено. Оновіть дані.');
+
+    const geometry = draft.geometry.filter(([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat));
+    if (geometry.length < 2) {
+      throw new Error('Намалюйте лінію маршруту: потрібно щонайменше дві точки.');
+    }
+
+    const fields = resolveFields(layer, ROUTE_CANDIDATES);
+    const definition = (key: string): LayerField | undefined => {
+      const name = fields[key];
+      return name ? layer.fields.find((field) => field.name === name) : undefined;
+    };
+    const attributes: Record<string, unknown> = {};
+    const put = (key: string, value: unknown, preferDomain?: RegExp): void => {
+      const name = fields[key];
+      if (!name || value === undefined || value === null || value === '') return;
+      attributes[name] = fieldValue(definition(key), value, preferDomain);
+    };
+
+    // Для кодованого довідника медиків значення має бути саме з домену.
+    const surveyedField = definition('surveyedBy');
+    const surveyedOptions =
+      surveyedField?.domain?.type === 'codedValue' ? (surveyedField.domain.codedValues ?? []) : [];
+    if (
+      surveyedOptions.length > 0 &&
+      !surveyedOptions.some(
+        (option) => String(option.name).trim().toLowerCase() === draft.surveyedBy.trim().toLowerCase(),
+      )
+    ) {
+      throw new Error('Обраний медик відсутній у довіднику шару маршрутів. Оберіть іншого.');
+    }
+
+    const lengthKm = Math.round(polylineLengthKm(geometry) * 100) / 100;
+    const surveyDate = draft.surveyDate || todayIso();
+
+    put('taskId', draft.taskId);
+    put('taskCode', draft.code);
+    put('facilityGuid', draft.facilityId);
+    put('isCurrent', isCurrent, isCurrent ? CURRENT_DOMAIN_VALUE : INACTIVE_DOMAIN_VALUE);
+    put('surveyedBy', draft.surveyedBy);
+    put('surveyDate', surveyDate);
+    if (withCreatedAt) put('createdAt', todayIso());
+    put('length', lengthKm);
+
+    return { attributes, geometry, lengthKm, surveyDate, objectIdField: layer.objectIdField };
+  };
+
+  const createRoute = async (draft: RouteDraft): Promise<RouteRecord> => {
+    if (!appConfig.services.routes.editable) {
+      throw new Error('Створення маршрутів заборонено налаштуваннями сервісу.');
+    }
+
+    const { attributes, geometry, lengthKm, surveyDate } = buildRouteWrite(draft, true, true);
+
+    const result = await applyEdits(appConfig.services.routes.url, {
+      adds: [{ attributes, geometry: lineGeometry(geometry) }],
+      token: authToken,
+    });
+    const added = result.addResults?.[0];
+    if (!added || added.success === false) {
+      throw new Error(added?.error?.description ?? 'Сервіс не підтвердив створення маршруту');
+    }
+
+    const facility = snapshot?.facilities.find((item) => item.id === draft.facilityId);
+    const taskName = snapshot?.minefields.find((item) => item.taskId === draft.taskId)?.name ?? '';
+    return {
+      id: added.globalId || (added.objectId !== undefined ? String(added.objectId) : `route-${Date.now()}`),
+      objectId: added.objectId,
+      code: draft.code,
+      taskId: draft.taskId,
+      taskName,
+      facilityId: draft.facilityId,
+      facilityName: facility?.name ?? '',
+      isCurrent: true,
+      surveyedBy: draft.surveyedBy,
+      surveyDate,
+      createdAt: todayIso(),
+      length: lengthKm,
+      geometry,
+    };
+  };
+
+  const updateRoute = async (record: RouteRecord, draft: RouteDraft): Promise<RouteRecord> => {
+    if (!appConfig.services.routes.editable) {
+      throw new Error('Редагування маршрутів заборонено налаштуваннями сервісу.');
+    }
+    if (record.objectId === undefined) {
+      throw new Error('Не знайдено OBJECTID маршруту — оновлення неможливе.');
+    }
+
+    const { attributes, geometry, lengthKm, surveyDate, objectIdField } = buildRouteWrite(
+      draft,
+      record.isCurrent,
+      false,
+    );
+    attributes[objectIdField] = record.objectId;
+
+    const result = await applyEdits(appConfig.services.routes.url, {
+      updates: [{ attributes, geometry: lineGeometry(geometry) }],
+      token: authToken,
+    });
+    const updated = result.updateResults?.[0];
+    if (!updated || updated.success === false) {
+      throw new Error(updated?.error?.description ?? 'Сервіс не підтвердив збереження маршруту');
+    }
+
+    const facility = snapshot?.facilities.find((item) => item.id === draft.facilityId);
+    const taskName =
+      snapshot?.minefields.find((item) => item.taskId === draft.taskId)?.name ?? record.taskName;
+    return {
+      ...record,
+      code: draft.code,
+      taskId: draft.taskId,
+      taskName,
+      facilityId: draft.facilityId,
+      facilityName: facility?.name ?? record.facilityName,
+      surveyedBy: draft.surveyedBy,
+      surveyDate,
+      length: lengthKm,
+      geometry,
+    };
+  };
+
+  const deleteRoute = async (record: RouteRecord): Promise<void> => {
+    if (!appConfig.services.routes.editable) {
+      throw new Error('Видалення маршрутів заборонено налаштуваннями сервісу.');
+    }
+    if (record.objectId === undefined) {
+      throw new Error('Не знайдено OBJECTID маршруту — видалення неможливе.');
+    }
+
+    const result = await applyEdits(appConfig.services.routes.url, {
+      deletes: [record.objectId],
+      token: authToken,
+    });
+    const deleted = result.deleteResults?.[0];
+    if (!deleted || deleted.success === false) {
+      throw new Error(deleted?.error?.description ?? 'Сервіс не підтвердив видалення маршруту');
+    }
+  };
+
   const initialCapabilities = {
     create: appConfig.services.facilities.editable,
     update: appConfig.services.facilities.editable,
@@ -484,13 +705,17 @@ export function createArcGisSource(token: string): DataSource {
       createFacility: initialCapabilities.create,
       editFacility: initialCapabilities.update,
       deleteFacility: initialCapabilities.delete,
-      createRoute: false,
-      editRouteGeometry: false,
+      createRoute: appConfig.services.routes.editable,
+      editRoute: appConfig.services.routes.editable,
+      deleteRoute: appConfig.services.routes.editable,
       writeStartPoints: false,
     },
     load,
     createFacility,
     updateFacility,
     deleteFacility,
+    createRoute,
+    updateRoute,
+    deleteRoute,
   };
 }

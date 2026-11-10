@@ -1,5 +1,5 @@
 import { facilityRecordFromValues, validateFacilityValues } from '../lib/facilitySchema';
-import { todayIso } from '../lib/format';
+import { polylineLengthKm, todayIso } from '../lib/format';
 import type {
   DataSnapshot,
   DataSource,
@@ -45,7 +45,8 @@ export function createDemoSource(): DataSource {
       editFacility: true,
       deleteFacility: true,
       createRoute: true,
-      editRouteGeometry: false,
+      editRoute: true,
+      deleteRoute: true,
       writeStartPoints: false,
     },
     load: async () => clone(snapshot),
@@ -93,18 +94,23 @@ export function createDemoSource(): DataSource {
       const minefield = snapshot.minefields.find((item) => item.taskId === draft.taskId);
       const start: LonLat = minefield?.location ?? [0, 0];
       const end: LonLat = facility.location ?? start;
+      const geometry = draft.geometry.length >= 2 ? draft.geometry : [start, end];
+      nextObjectId += 1;
 
       const route: RouteRecord = {
         id: `r-${Date.now()}`,
+        objectId: nextObjectId,
         code: draft.code,
         taskId: draft.taskId,
+        taskName: minefield?.name ?? '',
         facilityId: facility.id,
         facilityName: facility.name,
         isCurrent: true,
         surveyedBy: draft.surveyedBy,
         surveyDate: draft.surveyDate || todayIso(),
         createdAt: todayIso(),
-        geometry: [start, end],
+        length: Math.round(polylineLengthKm(geometry) * 100) / 100,
+        geometry,
       };
       snapshot.routes = [route, ...snapshot.routes];
       snapshot.startPoints = [
@@ -113,6 +119,40 @@ export function createDemoSource(): DataSource {
       ];
       registerMedic(draft.surveyedBy);
       return route;
+    },
+    updateRoute: async (record: RouteRecord, draft: RouteDraft): Promise<RouteRecord> => {
+      const facility = snapshot.facilities.find((item) => item.id === draft.facilityId);
+      if (!facility) throw new Error('Обраний медичний заклад не знайдено');
+      const index = snapshot.routes.findIndex((item) => item.id === record.id);
+      if (index < 0) throw new Error('Маршрут не знайдено');
+
+      const geometry = draft.geometry;
+      if (geometry.length < 2) {
+        throw new Error('Намалюйте лінію маршруту: потрібно щонайменше дві точки.');
+      }
+
+      const minefield = snapshot.minefields.find((item) => item.taskId === draft.taskId);
+      const updated: RouteRecord = {
+        ...record,
+        code: draft.code,
+        taskId: draft.taskId,
+        taskName: minefield?.name ?? record.taskName,
+        facilityId: facility.id,
+        facilityName: facility.name,
+        surveyedBy: draft.surveyedBy,
+        surveyDate: draft.surveyDate || todayIso(),
+        length: Math.round(polylineLengthKm(geometry) * 100) / 100,
+        geometry,
+      };
+      const routes = [...snapshot.routes];
+      routes[index] = updated;
+      snapshot.routes = routes;
+      registerMedic(updated.surveyedBy);
+      return updated;
+    },
+    deleteRoute: async (record: RouteRecord): Promise<void> => {
+      snapshot.routes = snapshot.routes.filter((item) => item.id !== record.id);
+      snapshot.startPoints = snapshot.startPoints.filter((point) => point.parentGlobalId !== record.id);
     },
   };
 }

@@ -3,20 +3,19 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
   Hospital,
   Map,
   MapPin,
-  MoreHorizontal,
+  Pencil,
   Plus,
+  RotateCcw,
   Search,
-  SlidersHorizontal,
 } from 'lucide-react';
-import { Modal } from '../components/Modal';
 import { DataStateGate, PageFooter, SnapshotNotices } from '../components/PageFooter';
+import { SearchableSelect } from '../components/SearchableSelect';
 import { useToast } from '../components/ToastContext';
 import { useData } from '../data/DataContext';
 import { useAuth } from '../auth/AuthContext';
@@ -24,15 +23,23 @@ import { appConfig } from '../config/appConfig';
 import {
   formatCoordinatePair,
   formatDate,
+  polylineLengthKm,
   routeColor,
   routeStatusLabel,
-  todayIso,
 } from '../lib/format';
 import { exportResponsePlan } from '../lib/docxExport';
+import type { RouteDraft, RouteRecord } from '../types';
 
 // Ліниво завантажуємо модальне вікно карти, щоб не тягнути ArcGIS-чанк у головний бандл
 const RouteMapExportModal = lazy(() =>
   import('../components/RouteMapExportModal').then((m) => ({ default: m.RouteMapExportModal })),
+);
+
+// Планувальник маршруту також тримає окремий ArcGIS-бандл.
+const RouteBuilderModal = lazy(() =>
+  import('../components/RouteBuilderModal').then((module) => ({
+    default: module.RouteBuilderModal,
+  })),
 );
 
 const RoutesMap = lazy(() =>
@@ -49,27 +56,15 @@ const FILTERS: { id: RouteFilter; label: string }[] = [
 /** Скільки маршрутів показуємо на сторінці; решта — скрол усередині таблиці. */
 const PAGE_SIZE = 100;
 
-interface RouteFormState {
-  taskId: string;
-  facilityId: string;
-  surveyedBy: string;
-  surveyDate: string;
-}
-
-const emptyForm = (): RouteFormState => ({
-  taskId: '',
-  facilityId: '',
-  surveyedBy: '',
-  surveyDate: todayIso(),
-});
-
 export function RoutesPage() {
-  const { snapshot, source, createRoute } = useData();
+  const { snapshot, source, createRoute, updateRoute, deleteRoute } = useData();
   const { notify } = useToast();
   const { session } = useAuth();
 
-  const { routes, facilities, minefields, medics } = snapshot;
+  const { routes, facilities, minefields, startPoints, medics } = snapshot;
   const canCreate = source?.capabilities.createRoute === true;
+  const canEdit = source?.capabilities.editRoute === true;
+  const canDelete = source?.capabilities.deleteRoute === true;
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RouteFilter>('all');
@@ -78,10 +73,23 @@ export function RoutesPage() {
   const [page, setPage] = useState(1);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<RouteRecord | null>(null);
   const [mapExportOpen, setMapExportOpen] = useState(false);
-  const [form, setForm] = useState<RouteFormState>(emptyForm);
-  const [saving, setSaving] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  // Довідник закладів для фільтра: швидкий пошук + алфавітний порядок.
+  const facilityOptions = useMemo(() => {
+    const sorted = facilities
+      .map((facility) => ({
+        value: facility.id,
+        label: facility.name,
+        keywords: `${facility.type} ${facility.address}`,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'uk', { sensitivity: 'base' }));
+    return [{ value: 'all', label: 'Усі заклади' }, ...sorted];
+  }, [facilities]);
+
+  const filtersActive = query.trim().length > 0 || filter !== 'all' || facilityFilter !== 'all';
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -89,7 +97,9 @@ export function RoutesPage() {
       .filter((route) => {
         const matchesQuery =
           needle.length === 0 ||
-          `${route.code} ${route.facilityName} ${route.surveyedBy}`.toLowerCase().includes(needle);
+          `${route.code} ${route.taskName} ${route.facilityName} ${route.surveyedBy}`
+            .toLowerCase()
+            .includes(needle);
         const matchesFacility = facilityFilter === 'all' || route.facilityId === facilityFilter;
         const matchesType = filter === 'all' || (filter === 'current' && route.isCurrent);
         return matchesQuery && matchesFacility && matchesType;
@@ -144,6 +154,12 @@ export function RoutesPage() {
     setPage(Math.min(Math.max(next, 1), pageCount));
   };
 
+  const resetFilters = () => {
+    setQuery('');
+    setFilter('all');
+    setFacilityFilter('all');
+  };
+
   const selectRoute = (id: string) => {
     setSelectedId(id);
     const index = filtered.findIndex((route) => route.id === id);
@@ -151,33 +167,48 @@ export function RoutesPage() {
   };
 
   const openDraft = () => {
-    setForm(emptyForm());
+    setEditingRoute(null);
     setDraftOpen(true);
   };
 
-  const submitDraft = async () => {
-    const minefield = minefields.find((item) => item.taskId === form.taskId);
-    if (!minefield || !form.facilityId || !form.surveyedBy || !form.surveyDate) {
-      notify('Заповніть мінне поле, заклад, медика та дату обстеження.', 'error');
+  const openEdit = (route: RouteRecord) => {
+    if (!canEdit) {
+      notify('Редагування маршрутів недоступне в поточному режимі.', 'info');
       return;
     }
-    setSaving(true);
-    try {
-      const created = await createRoute({
-        taskId: minefield.taskId,
-        code: minefield.taskCode,
-        facilityId: form.facilityId,
-        surveyedBy: form.surveyedBy,
-        surveyDate: form.surveyDate,
-      });
-      setSelectedId(created.id);
-      setDraftOpen(false);
-      notify('Маршрут додано до чернетки. Геометрія та початкова точка — наступний етап.');
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : 'Не вдалося створити маршрут', 'error');
-    } finally {
-      setSaving(false);
-    }
+    setSelectedId(route.id);
+    setEditingRoute(route);
+    setDraftOpen(true);
+  };
+
+  const closeBuilder = () => {
+    setDraftOpen(false);
+    setEditingRoute(null);
+  };
+
+  const handleCreateRoute = async (draft: RouteDraft) => {
+    const created = await createRoute(draft);
+    setSelectedId(created.id);
+    closeBuilder();
+    const length = created.length ?? polylineLengthKm(created.geometry);
+    notify(`Маршрут ${created.code} створено (${length.toFixed(1)} км).`, 'success');
+    return created;
+  };
+
+  const handleUpdateRoute = async (route: RouteRecord, draft: RouteDraft) => {
+    const updated = await updateRoute(route, draft);
+    setSelectedId(updated.id);
+    closeBuilder();
+    const length = updated.length ?? polylineLengthKm(updated.geometry);
+    notify(`Маршрут ${updated.code} збережено (${length.toFixed(1)} км).`, 'success');
+    return updated;
+  };
+
+  const handleDeleteRoute = async (route: RouteRecord) => {
+    await deleteRoute(route);
+    closeBuilder();
+    setSelectedId(null);
+    notify(`Маршрут ${route.code || route.id} видалено.`, 'success');
   };
 
   const handleExportPlan = async () => {
@@ -217,16 +248,13 @@ export function RoutesPage() {
       notify(`План реагування ${activeRoute.code} завантажено`, 'success');
     } catch (error) {
       console.error('Помилка експорту документу:', error);
-      notify(
-        error instanceof Error ? error.message : 'Не вдалося згенерувати документ',
-        'error',
-      );
+      notify(error instanceof Error ? error.message : 'Не вдалося згенерувати документ', 'error');
     }
   };
 
   const headingCanCreateTitle = canCreate
     ? 'Створити маршрут'
-    : 'Створення маршрутів у режимі Portal буде доступне після підключення геометрії (етап 4).';
+    : 'Створення маршрутів недоступне в поточному режимі.';
 
   const firstShown = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const lastShown = Math.min(currentPage * PAGE_SIZE, filtered.length);
@@ -284,6 +312,7 @@ export function RoutesPage() {
                   routes={filtered}
                   facilities={facilities}
                   minefields={minefields}
+                  facilityFilterId={facilityFilter}
                   selectedId={activeRoute?.id ?? null}
                   onSelect={selectRoute}
                   expanded={mapExpanded}
@@ -304,15 +333,11 @@ export function RoutesPage() {
                   <button
                     className="icon-button"
                     aria-label="Редагувати маршрут"
-                    title="Редагувати маршрут"
-                    onClick={() =>
-                      notify(
-                        'Редагування геометрії потребує підключення Sketch та Feature Service (етап 4).',
-                        'info',
-                      )
-                    }
+                    title={canEdit ? 'Редагувати маршрут' : 'Редагування недоступне'}
+                    onClick={() => openEdit(activeRoute)}
+                    disabled={!canEdit}
                   >
-                    <SlidersHorizontal size={17} />
+                    <Pencil size={16} />
                   </button>
                 </div>
                 <div className="route-detail-body">
@@ -381,10 +406,7 @@ export function RoutesPage() {
                 {/* Кнопки експорту — поза прокручуваним тілом, щоб не зникали у вузькому вікні. */}
                 <div className="route-detail-footer">
                   <div className="export-actions">
-                    <button
-                      className="export-card"
-                      onClick={() => setMapExportOpen(true)}
-                    >
+                    <button className="export-card" onClick={() => setMapExportOpen(true)}>
                       <span className="export-icon export-map">
                         <Map size={17} />
                       </span>
@@ -392,10 +414,7 @@ export function RoutesPage() {
                         <strong>Створити карту</strong>
                       </span>
                     </button>
-                    <button
-                      className="export-card"
-                      onClick={handleExportPlan}
-                    >
+                    <button className="export-card" onClick={handleExportPlan}>
                       <span className="export-icon export-doc">
                         <FileText size={17} />
                       </span>
@@ -424,18 +443,18 @@ export function RoutesPage() {
               </div>
             </div>
             <div className="list-tools">
-              <label className="select-wrap">
-                <Hospital size={15} />
-                <select value={facilityFilter} onChange={(event) => setFacilityFilter(event.target.value)}>
-                  <option value="all">Усі заклади</option>
-                  {facilities.map((facility) => (
-                    <option key={facility.id} value={facility.id}>
-                      {facility.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </label>
+              <div className="routes-facility-select">
+                <SearchableSelect
+                  value={facilityFilter}
+                  options={facilityOptions}
+                  placeholder="Усі заклади"
+                  searchPlaceholder="Пошук закладу"
+                  emptyLabel="Закладів не знайдено"
+                  ariaLabel="Фільтр за медичним закладом"
+                  onChange={setFacilityFilter}
+                  popover
+                />
+              </div>
               <label className="search-field search-field-small">
                 <Search size={15} />
                 <input
@@ -444,6 +463,16 @@ export function RoutesPage() {
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
+              <button
+                type="button"
+                className="button button-quiet routes-reset-filters"
+                onClick={resetFilters}
+                disabled={!filtersActive}
+                title="Скинути всі фільтри"
+              >
+                <RotateCcw size={14} />
+                <span>Скинути фільтри</span>
+              </button>
             </div>
             <div className="filter-tabs">
               {FILTERS.map((item) => (
@@ -463,6 +492,7 @@ export function RoutesPage() {
               <thead>
                 <tr>
                   <th>МАРШРУТ</th>
+                  <th>TASK NAME</th>
                   <th>МЕДИЧНИЙ ЗАКЛАД</th>
                   <th>СТАТУС</th>
                   <th>ОБСТЕЖЕНО</th>
@@ -485,6 +515,11 @@ export function RoutesPage() {
                           <strong>{route.code || 'Без коду'}</strong>
                           <span>{route.surveyDate ? formatDate(route.surveyDate) : 'Дата не вказана'}</span>
                         </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="table-task-name" title={route.taskName || undefined}>
+                        {route.taskName || '—'}
                       </div>
                     </td>
                     <td>
@@ -513,13 +548,15 @@ export function RoutesPage() {
                     <td>
                       <button
                         className="icon-button row-more"
-                        aria-label="Дії"
+                        aria-label="Редагувати маршрут"
+                        title={canEdit ? 'Редагувати маршрут' : 'Редагування недоступне'}
+                        disabled={!canEdit}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setSelectedId(route.id);
+                          openEdit(route);
                         }}
                       >
-                        <MoreHorizontal size={18} />
+                        <Pencil size={16} />
                       </button>
                     </td>
                   </tr>
@@ -536,7 +573,11 @@ export function RoutesPage() {
           </div>
           <div className="table-footer">
             <span>
-              Показано <strong>{firstShown}–{lastShown}</strong> із <strong>{filtered.length}</strong> маршрутів
+              Показано{' '}
+              <strong>
+                {firstShown}–{lastShown}
+              </strong>{' '}
+              із <strong>{filtered.length}</strong> маршрутів
             </span>
             <div className="pagination">
               <button
@@ -583,92 +624,19 @@ export function RoutesPage() {
         )}
 
         {draftOpen && (
-          <Modal
-            title="Новий маршрут CASEVAC"
-            subtitle="Крок 1–2: мінне поле та медичний заклад. Геометрія — на етапі 4."
-            submitLabel={saving ? 'Створюємо…' : 'Створити чернетку'}
-            submitDisabled={saving}
-            onClose={() => setDraftOpen(false)}
-            onSubmit={() => void submitDraft()}
-          >
-            <label className="form-label">
-              <span className="field-label">Мінне поле <i className="field-required">*</i></span>
-              <select
-                value={form.taskId}
-                onChange={(event) => setForm({ ...form, taskId: event.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  Оберіть мінне поле
-                </option>
-                {minefields.map((minefield) => (
-                  <option key={minefield.id} value={minefield.taskId}>
-                    {minefield.taskCode}
-                    {minefield.name ? ` — ${minefield.name}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-label">
-              <span className="field-label">Медичний заклад <i className="field-required">*</i></span>
-              <select
-                value={form.facilityId}
-                onChange={(event) => setForm({ ...form, facilityId: event.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  Оберіть заклад
-                </option>
-                {facilities.map((facility) => (
-                  <option key={facility.id} value={facility.id}>
-                    {facility.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-label">
-              <span className="field-label">Обстежив маршрут <i className="field-required">*</i></span>
-              {medics.length > 0 ? (
-                <select
-                  value={form.surveyedBy}
-                  onChange={(event) => setForm({ ...form, surveyedBy: event.target.value })}
-                  required
-                >
-                  <option value="" disabled>
-                    Оберіть медика
-                  </option>
-                  {medics.map((medic) => (
-                    <option key={medic} value={medic}>
-                      {medic}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={form.surveyedBy}
-                  onChange={(event) => setForm({ ...form, surveyedBy: event.target.value })}
-                  placeholder="ПІБ медика"
-                  required
-                />
-              )}
-            </label>
-            <label className="form-label">
-              <span className="field-label">Дата обстеження <i className="field-required">*</i></span>
-              <input
-                type="date"
-                value={form.surveyDate}
-                onChange={(event) => setForm({ ...form, surveyDate: event.target.value })}
-                required
-              />
-            </label>
-            <div className="form-info">
-              <MapPin size={16} />
-              <span>
-                Чернетка не містить геометрії: лінію буде намальовано на карті після підключення Sketch (етап
-                4). Початкова точка створиться автоматично разом із геометрією.
-              </span>
-            </div>
-          </Modal>
+          <Suspense fallback={null}>
+            <RouteBuilderModal
+              minefields={minefields}
+              facilities={facilities}
+              medics={medics}
+              startPoints={startPoints}
+              route={editingRoute ?? undefined}
+              onClose={closeBuilder}
+              onCreate={handleCreateRoute}
+              onUpdate={canEdit ? handleUpdateRoute : undefined}
+              onDelete={canDelete ? handleDeleteRoute : undefined}
+            />
+          </Suspense>
         )}
       </DataStateGate>
     </div>

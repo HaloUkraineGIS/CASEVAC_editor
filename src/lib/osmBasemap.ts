@@ -15,7 +15,7 @@ export type BasemapKey = 'osm' | 'topo' | 'imagery';
 export const BASEMAP_OPTIONS: { key: BasemapKey; label: string }[] = [
   { key: 'osm', label: 'OSM' },
   { key: 'topo', label: 'Esri Topographic' },
-  { key: 'imagery', label: 'Imagery Hybrid' },
+  { key: 'imagery', label: 'Esri Satellite' },
 ];
 
 const ESRI_WORLD_TOPO =

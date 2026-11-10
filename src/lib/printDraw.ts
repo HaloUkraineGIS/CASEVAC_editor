@@ -8,6 +8,12 @@
 
 import {
   mapFrame,
+  SCALE_BAR_BAR_HEIGHT_MM,
+  SCALE_BAR_LABEL_FONT_MM,
+  SCALE_BAR_PADDING_MM,
+  SCALE_BAR_SEGMENTS,
+  SCALE_BAR_TITLE_FONT_MM,
+  SCALE_BAR_UNIT_GAP_MM,
   scaleBarSpec,
   type ElementVisibility,
   type PageMm,
@@ -24,6 +30,12 @@ export interface SheetTexts {
   facilityCaption: string;
 }
 
+/** Позначки точкових об'єктів для легенди (зображення з шарів карти). */
+export interface LegendSymbols {
+  facility?: CanvasImageSource | null;
+  start?: CanvasImageSource | null;
+}
+
 export interface SheetDrawOptions {
   page: PageMm;
   layout: PrintLayout;
@@ -37,6 +49,8 @@ export interface SheetDrawOptions {
   dpi: number;
   logo?: CanvasImageSource | null;
   northArrow?: CanvasImageSource | null;
+  /** Символи точок для легенди; без них малюються стандартні позначки. */
+  legendSymbols?: LegendSymbols;
 }
 
 const FONT_FAMILY = "'DM Sans', 'Segoe UI', Arial, sans-serif";
@@ -180,9 +194,15 @@ function imageSize(image: CanvasImageSource): { width: number; height: number } 
 }
 
 function formatDistance(meters: number, totalMeters: number): string {
-  if (totalMeters >= 1000) {
+  if (totalMeters > 1000) {
     const km = meters / 1000;
-    return Number.isInteger(km) ? String(km) : km.toFixed(1);
+    if (Number.isInteger(km)) return String(km);
+    // До двох знаків після коми, без зайвих нулів: 0,25 / 0,5 / 1,25.
+    const text = km
+      .toFixed(2)
+      .replace(/\.?0+$/, '')
+      .replace('.', ',');
+    return text;
   }
   return String(Math.round(meters));
 }
@@ -206,7 +226,26 @@ function drawHeader(ctx: CanvasRenderingContext2D, rect: RectMm, texts: SheetTex
   ctx.fillText(texts.subheading, cx, (rect.yMm + rect.hMm * 0.73) * k);
 }
 
-function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): void {
+/** Малює зображення символу по центру позначки легенди. */
+function drawLegendImage(
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  centerX: number,
+  centerY: number,
+  sizeMm: number,
+  dpi: number,
+): void {
+  const natural = imageSize(image);
+  if (!natural) return;
+  const k = dpi / 25.4;
+  const box = sizeMm * k;
+  const ratio = Math.min(box / natural.width, box / natural.height);
+  const width = natural.width * ratio;
+  const height = natural.height * ratio;
+  ctx.drawImage(image, centerX - width / 2, centerY - height / 2, width, height);
+}
+
+function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number, symbols?: LegendSymbols): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
   const k = dpi / 25.4;
   const left = (rect.xMm + 3) * k;
@@ -230,30 +269,38 @@ function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): v
     const centerX = (rect.xMm + 8) * k;
 
     if (row.kind === 'facility') {
-      ctx.beginPath();
-      ctx.arc(centerX, cy, 2.4 * k, 0, Math.PI * 2);
-      ctx.fillStyle = FACILITY_BLUE;
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 0.45 * k;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = font(2.6, 700, dpi);
-      ctx.textAlign = 'center';
-      ctx.fillText('H', centerX, cy + 0.1 * k);
-      ctx.textAlign = 'left';
+      if (symbols?.facility) {
+        drawLegendImage(ctx, symbols.facility, centerX, cy, 5.6, dpi);
+      } else {
+        ctx.beginPath();
+        ctx.arc(centerX, cy, 2.4 * k, 0, Math.PI * 2);
+        ctx.fillStyle = FACILITY_BLUE;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.45 * k;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = font(2.6, 700, dpi);
+        ctx.textAlign = 'center';
+        ctx.fillText('H', centerX, cy + 0.1 * k);
+        ctx.textAlign = 'left';
+      }
     } else if (row.kind === 'start') {
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 0.6 * k;
-      ctx.beginPath();
-      ctx.moveTo(centerX - 2.2 * k, cy);
-      ctx.lineTo(centerX + 2.2 * k, cy);
-      ctx.moveTo(centerX, cy - 2.2 * k);
-      ctx.lineTo(centerX, cy + 2.2 * k);
-      ctx.stroke();
+      if (symbols?.start) {
+        drawLegendImage(ctx, symbols.start, centerX, cy, 3.6, dpi);
+      } else {
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 0.6 * k;
+        ctx.beginPath();
+        ctx.moveTo(centerX - 2.2 * k, cy);
+        ctx.lineTo(centerX + 2.2 * k, cy);
+        ctx.moveTo(centerX, cy - 2.2 * k);
+        ctx.lineTo(centerX, cy + 2.2 * k);
+        ctx.stroke();
+      }
     } else {
       ctx.strokeStyle = ROUTE_RED;
-      ctx.lineWidth = 1 * k;
+      ctx.lineWidth = 0.65 * k;
       ctx.beginPath();
       ctx.moveTo(centerX - 3.5 * k, cy);
       ctx.lineTo(centerX + 3.5 * k, cy);
@@ -270,28 +317,38 @@ function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): v
 
 function drawScaleBar(ctx: CanvasRenderingContext2D, rect: RectMm, scale: number, dpi: number): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
-  const k = dpi / 25.4;
-  const spec = scaleBarSpec(scale, rect.wMm);
-  const segments = 4;
 
+  const k = dpi / 25.4;
+  const spec = scaleBarSpec(scale);
+  const paddingMm = SCALE_BAR_PADDING_MM;
+  const contentX = rect.xMm + paddingMm;
+  const contentW = Math.max(1, rect.wMm - paddingMm * 2);
+
+  // Вертикальна розкладка вмісту (див. SCALE_BAR_CONTENT_HEIGHT_MM).
+  const titleBlockMm = 2.8;
+  const titleGapMm = 0.8;
+  const barToLabelGapMm = 0.8;
+  const labelBlockMm = 2.2;
+
+  // Заголовок «1:N» — по центру рамки.
   ctx.fillStyle = INK;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = font(2.8, 700, dpi);
-  ctx.fillText(spec.label, (rect.xMm + rect.wMm / 2) * k, (rect.yMm + 2.9) * k);
+  const titleSize = fitFont(ctx, spec.label, contentW * k, SCALE_BAR_TITLE_FONT_MM, 700, dpi, 1.9);
+  ctx.font = font(titleSize, 700, dpi);
+  const titleCenterY = rect.yMm + paddingMm + titleBlockMm / 2;
+  ctx.fillText(spec.label, (rect.xMm + rect.wMm / 2) * k, titleCenterY * k);
 
-  // Лінійку центруємо разом із підписом одиниці виміру, а не притискаємо до лівого краю.
-  const unit = spec.totalMeters >= 1000 ? 'км' : 'м';
-  ctx.font = font(2.2, 400, dpi);
-  const unitWidthMm = ctx.measureText(unit).width / k;
-  const unitGapMm = 1.6;
-  const groupWidthMm = spec.barMm + unitGapMm + unitWidthMm;
-  const barX = rect.xMm + Math.max(2, (rect.wMm - groupWidthMm) / 2);
-  const barY = rect.yMm + 5.2;
-  const barH = 1.6;
-  const segW = spec.barMm / segments;
+  // Смугу центруємо разом із підписом одиниці виміру.
+  ctx.font = font(SCALE_BAR_LABEL_FONT_MM, 400, dpi);
+  const unitWidthMm = ctx.measureText(spec.unit).width / k;
+  const groupWidthMm = spec.barMm + SCALE_BAR_UNIT_GAP_MM + unitWidthMm;
+  const barX = contentX + Math.max(0, (contentW - groupWidthMm) / 2);
+  const barY = rect.yMm + paddingMm + titleBlockMm + titleGapMm;
+  const barH = SCALE_BAR_BAR_HEIGHT_MM;
+  const segW = spec.barMm / SCALE_BAR_SEGMENTS;
 
-  for (let index = 0; index < segments; index += 1) {
+  for (let index = 0; index < SCALE_BAR_SEGMENTS; index += 1) {
     const seg: RectMm = {
       xMm: barX + segW * index,
       yMm: barY,
@@ -305,21 +362,51 @@ function drawScaleBar(ctx: CanvasRenderingContext2D, rect: RectMm, scale: number
     ctx.strokeRect(p.x, p.y, p.w, p.h);
   }
 
-  ctx.font = font(2.2, 400, dpi);
-  ctx.fillStyle = INK;
-  for (let index = 0; index <= segments; index += 1) {
-    const xMm = barX + segW * index;
-    const anchor: CanvasTextAlign = index === 0 ? 'left' : index === segments ? 'right' : 'center';
-    ctx.textAlign = anchor;
-    ctx.fillText(
-      formatDistance(spec.segmentMeters * index, spec.totalMeters),
-      xMm * k,
-      (barY + barH + 2.2) * k,
+  // Підписи під лінійкою. Якщо сусідні підписи починають перекриватися,
+  // спершу трохи зменшуємо шрифт, а далі лишаємо кожен другий поділ.
+  const labelText = (index: number) => formatDistance(spec.segmentMeters * index, spec.totalMeters);
+  let visibleTicks = Array.from({ length: SCALE_BAR_SEGMENTS + 1 }, (_, index) => index);
+  let labelFontMm = SCALE_BAR_LABEL_FONT_MM;
+
+  for (;;) {
+    ctx.font = font(labelFontMm, 400, dpi);
+    const widths = visibleTicks.map((index) => ctx.measureText(labelText(index)).width / k);
+    const overlaps = visibleTicks.some((index, position) => {
+      if (position === 0) return false;
+      const previous = visibleTicks[position - 1];
+      const neededMm = (widths[position - 1] + widths[position]) / 2 + 0.9;
+      return segW * (index - previous) < neededMm;
+    });
+
+    if (!overlaps) break;
+
+    if (labelFontMm > 1.7 + 0.001) {
+      labelFontMm = Math.max(1.7, labelFontMm - 0.1);
+      continue;
+    }
+
+    const reduced = visibleTicks.filter(
+      (_, position) => position === 0 || position === visibleTicks.length - 1 || position % 2 === 0,
     );
+    if (reduced.length === visibleTicks.length) break;
+    visibleTicks = reduced;
   }
 
+  ctx.font = font(labelFontMm, 400, dpi);
+  ctx.fillStyle = INK;
+  ctx.textBaseline = 'middle';
+  const labelCenterY = barY + barH + barToLabelGapMm + labelBlockMm / 2;
+
+  visibleTicks.forEach((index) => {
+    const anchor: CanvasTextAlign = index === 0 ? 'left' : index === SCALE_BAR_SEGMENTS ? 'right' : 'center';
+    ctx.textAlign = anchor;
+    ctx.fillText(labelText(index), (barX + segW * index) * k, labelCenterY * k);
+  });
+
+  // Одиниця виміру — праворуч від смуги, по її центру.
   ctx.textAlign = 'left';
-  ctx.fillText(unit, (barX + spec.barMm + unitGapMm) * k, (barY + barH / 2) * k);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(spec.unit, (barX + spec.barMm + SCALE_BAR_UNIT_GAP_MM) * k, (barY + barH / 2) * k);
 }
 
 /**
@@ -419,7 +506,7 @@ export function drawSheet(ctx: CanvasRenderingContext2D, options: SheetDrawOptio
     drawImageFit(ctx, northArrow, layout.north, dpi, 0);
   }
 
-  if (visible.legend) drawLegend(ctx, layout.legend, dpi);
+  if (visible.legend) drawLegend(ctx, layout.legend, dpi, options.legendSymbols);
   if (visible.scaleBar) drawScaleBar(ctx, layout.scaleBar, scale, dpi);
   if (visible.stamp) drawStamp(ctx, layout.stamp, dpi);
 }
