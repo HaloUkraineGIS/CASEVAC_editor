@@ -266,6 +266,7 @@ export function RouteBuilderModal({
   const [mapNotice, setMapNotice] = useState('');
   const [builderMode, setBuilderMode] = useState<BuilderMode>(isEditing ? 'manual' : 'choose');
   const [geometryEditing, setGeometryEditing] = useState(false);
+  const [drawing, setDrawing] = useState(false);
   const [routeBuilding, setRouteBuilding] = useState(false);
   const [routeMeta, setRouteMeta] = useState<{
     durationMin: number;
@@ -311,6 +312,13 @@ export function RouteBuilderModal({
   const minefield = useMemo(() => minefields.find((item) => item.taskId === taskId), [minefields, taskId]);
   const facility = useMemo(() => facilities.find((item) => item.id === facilityId), [facilities, facilityId]);
   const startPoint = useMemo(() => startPointFor(minefield, startPoints), [minefield, startPoints]);
+  // Ручне креслення доступне лише коли визначені обидва кінці маршруту.
+  const manualReady = Boolean(startPoint && facility?.location);
+  // Якщо лінія починається ближче до закладу, користувач, найімовірніше, намалював її навпаки.
+  const reversedRoute = useMemo(() => {
+    if (points.length < 2 || !startPoint || !facility?.location) return false;
+    return distanceMeters(points[0], facility.location) < distanceMeters(points[0], startPoint);
+  }, [points, startPoint, facility]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<MapView | null>(null);
@@ -363,6 +371,13 @@ export function RouteBuilderModal({
   const startDrawing = () => {
     const sketch = sketchRef.current;
     if (!sketch) return;
+    // Без вибраної ділянки та закладу маршрут не має сенсу — попереджаємо.
+    if (!startPointRef.current || !facilityRef.current?.location) {
+      setRouteWarning(
+        'Спочатку оберіть ділянку розмінування та медичний заклад — без них не можна створити маршрут.',
+      );
+      return;
+    }
     cancelGeometryEditing();
     draftLayerRef.current?.removeAll();
     pointsRef.current = [];
@@ -371,7 +386,13 @@ export function RouteBuilderModal({
     setRouteMeta(null);
     setRouteWarning('');
     setError('');
+    setDrawing(true);
     void sketch.create('polyline', { mode: 'click', hasZ: false });
+  };
+
+  const finishDrawing = () => {
+    sketchRef.current?.complete();
+    setDrawing(false);
   };
 
   const undoSketch = () => sketchRef.current?.undo();
@@ -479,6 +500,7 @@ export function RouteBuilderModal({
     const graphic = lineGraphic(pointsRef.current, ROUTE_LINE);
     layer.add(graphic);
     editModeRef.current = true;
+    setDrawing(false);
     setGeometryEditing(true);
     void sketch.update(graphic, {
       tool: 'reshape',
@@ -668,7 +690,8 @@ export function RouteBuilderModal({
 
         sketch.on('create', (event: CreateEvent) => {
           if (event.state === 'active' || event.state === 'complete') syncGeometry(event.graphic);
-          if (event.state === 'complete' && event.graphic) {
+          if (event.state === 'complete') {
+            setDrawing(false);
             editModeRef.current = false;
             setGeometryEditing(false);
           }
@@ -1188,14 +1211,51 @@ export function RouteBuilderModal({
 
               {builderMode === 'manual' && !isEditing && (
                 <div className="route-builder-tools">
-                  <button type="button" className="button button-primary" onClick={startDrawing}>
-                    <PencilLine size={14} />
-                    Створити полілінію
-                  </button>
+                  {drawing ? (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={finishDrawing}
+                    >
+                      <Check size={14} />
+                      Завершити лінію
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={startDrawing}
+                      disabled={!manualReady}
+                      title={
+                        manualReady
+                          ? undefined
+                          : 'Спочатку оберіть ділянку розмінування та медичний заклад'
+                      }
+                    >
+                      <PencilLine size={14} />
+                      Створити полілінію
+                    </button>
+                  )}
                 </div>
               )}
 
-              {points.length >= 2 && (
+              {builderMode === 'manual' && !isEditing && !manualReady && (
+                <p className="route-builder-route-warning" role="status">
+                  <TriangleAlert size={13} />
+                  Оберіть ділянку розмінування та медичний заклад зі списків — без них
+                  створити полілінію не можна.
+                </p>
+              )}
+
+              {builderMode === 'manual' && !isEditing && manualReady && (
+                <p className="route-builder-route-meta">
+                  <MapPin size={13} />
+                  Починайте лінію від ділянки розмінування та завершуйте біля медичного
+                  закладу — не навпаки.
+                </p>
+              )}
+
+              {points.length >= 2 && !drawing && (
                 <div className="route-builder-tools">
                   <button
                     type="button"
@@ -1238,16 +1298,26 @@ export function RouteBuilderModal({
                 </p>
               )}
 
+              {reversedRoute && (
+                <p className="route-builder-route-warning" role="status">
+                  <TriangleAlert size={13} />
+                  Лінія починається ближче до медичного закладу. Маршрут має починатися з
+                  ділянки розмінування, а завершуватися біля закладу.
+                </p>
+              )}
+
               <p className="route-builder-note">
-                {points.length >= 2 && geometryEditing
-                  ? 'Перетягніть точку, щоб змінити лінію. Клік по точці-маркеру на лінії додає нову точку; права кнопка на точці видаляє її.'
-                  : isEditing
-                    ? 'Натисніть «Редагувати полілінію», щоб перетягувати точки, додавати нові та видаляти зайві.'
-                    : points.length >= 2 && builderMode === 'semi'
-                      ? 'Перетягніть точку, щоб змінити лінію. Клік по точці-маркеру на лінії додає нову точку; права кнопка на точці видаляє її.'
-                      : builderMode === 'semi'
-                        ? 'Оберіть ділянку та заклад, потім натисніть «Побудувати маршрут».'
-                        : 'Клік на карту додає точку. Після завершення натисніть Enter або двічі клацніть. Точку можна перетягнути; видалити її можна правою кнопкою миші.'}
+                {drawing
+                  ? 'Клік на карту додає точку. Починайте від ділянки розмінування, завершуйте біля медичного закладу. Enter або «Завершити лінію» — готово.'
+                  : points.length >= 2 && geometryEditing
+                    ? 'Перетягніть точку, щоб змінити лінію. Клік по точці-маркеру на лінії додає нову точку; права кнопка на точці видаляє її.'
+                    : isEditing
+                      ? 'Натисніть «Редагувати полілінію», щоб перетягувати точки, додавати нові та видаляти зайві.'
+                      : points.length >= 2 && builderMode === 'semi'
+                        ? 'Перетягніть точку, щоб змінити лінію. Клік по точці-маркеру на лінії додає нову точку; права кнопка на точці видаляє її.'
+                        : builderMode === 'semi'
+                          ? 'Оберіть ділянку та заклад, потім натисніть «Побудувати маршрут».'
+                          : 'Клік на карту додає точку. Після завершення натисніть Enter або двічі клацніть. Точку можна перетягнути; видалити її можна правою кнопкою миші.'}
               </p>
 
               <div className="route-builder-tools">
@@ -1420,13 +1490,15 @@ export function RouteBuilderModal({
           )}
           {status === 'ready' && builderMode !== 'choose' && (
             <div className="route-builder-hint">
-              {geometryEditing
-                ? 'Перетягніть точку · клік по точці-маркеру на лінії — додати · права кнопка — видалити'
-                : isEditing
-                  ? 'Натисніть «Редагувати полілінію», щоб змінити геометрію маршруту'
-                  : builderMode === 'semi'
-                    ? 'Оберіть ділянку та заклад ліворуч і натисніть «Побудувати маршрут»'
-                    : 'Клік — додати точку · Enter або подвійний клік — завершити · перетягування — перемістити'}
+              {drawing
+                ? 'Клік — додати точку · від ділянки розмінування до закладу · Enter — завершити'
+                : geometryEditing
+                  ? 'Перетягніть точку · клік по точці-маркеру на лінії — додати · права кнопка — видалити'
+                  : isEditing
+                    ? 'Натисніть «Редагувати полілінію», щоб змінити геометрію маршруту'
+                    : builderMode === 'semi'
+                      ? 'Оберіть ділянку та заклад ліворуч і натисніть «Побудувати маршрут»'
+                      : 'Клік — додати точку · Enter або подвійний клік — завершити · перетягування — перемістити'}
             </div>
           )}
         </div>

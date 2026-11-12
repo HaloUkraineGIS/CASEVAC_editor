@@ -4995,24 +4995,28 @@ select:focus-visible {
 }
 .route-builder-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
   min-height: 64px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid #e8edea;
   background: #fff;
   box-sizing: border-box;
 }
+/* Кнопки футера завжди в один ряд: звужуємо відступи, а не переносимо рядок. */
 .route-builder-actions .button {
   flex: 0 0 auto;
   min-width: 0;
+  padding: 0 9px;
+  gap: 6px;
+  font-size: 10.5px;
   white-space: nowrap;
 }
-.route-builder-actions .button-primary {
-  min-width: 132px;
+.route-builder-actions .button svg {
+  flex: 0 0 auto;
 }
 .route-builder-delete {
   margin-right: auto;
