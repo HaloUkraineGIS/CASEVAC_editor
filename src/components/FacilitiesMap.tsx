@@ -35,6 +35,11 @@ interface FacilitiesMapProps {
   expanded?: boolean;
   /** Callback коли зміна стану розгортання. */
   onToggleExpand?: () => void;
+  /**
+   * Ключ зуму: коли змінюється, карта підганяється під поточний набір
+   * закладів (наприклад, під заклади вибраної області).
+   */
+  fitKey?: string;
 }
 
 const VERIFIED_SYMBOL = new SimpleMarkerSymbol({
@@ -234,6 +239,7 @@ export function FacilitiesMap({
   filterActive = false,
   expanded = false,
   onToggleExpand,
+  fitKey,
 }: FacilitiesMapProps) {
   const { session } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -252,6 +258,7 @@ export function FacilitiesMap({
   const legendVisibleRef = useRef(false);
   const focusedOnceRef = useRef(false);
   const lastCenteredRef = useRef<string | null>(null);
+  const lastFitKeyRef = useRef<string | undefined>(fitKey);
   const [basemapKey, setBasemapKey] = useState<BasemapKey>('osm');
   const [legendVisible, setLegendVisible] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -527,6 +534,20 @@ export function FacilitiesMap({
   useEffect(() => {
     applyLayerFilter();
   }, [facilities, filterActive, applyLayerFilter, status]);
+
+  // Зум до поточного набору закладів при зміні вибраної області.
+  useEffect(() => {
+    if (fitKey === undefined || status !== 'ready') return;
+    if (lastFitKeyRef.current === fitKey) return;
+    lastFitKeyRef.current = fitKey;
+    const view = viewRef.current;
+    if (!view || !focusedOnceRef.current) return;
+    const points = facilitiesRef.current
+      .map((facility) => facility.location)
+      .filter((point): point is LonLat => point !== undefined);
+    const viewport = fitView(points, view.width, view.height);
+    if (viewport) void view.goTo(viewport);
+  }, [fitKey, status]);
 
   // Перемикання підкладки з випадаючого списку.
   useEffect(() => {

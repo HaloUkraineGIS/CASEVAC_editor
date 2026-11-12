@@ -40,6 +40,7 @@ const FIELDS: FacilitySchemaFieldInput[] = [
     domain: coded(DEMO_FACILITY_TYPES),
   },
   { name: 'address', alias: 'Адреса', type: 'esriFieldTypeString', length: 300 },
+  { name: 'region', alias: 'Область', type: 'esriFieldTypeString', length: 100 },
   {
     name: 'is_active',
     alias: 'Заклад активний',
@@ -123,6 +124,7 @@ interface DemoAttributeBase {
   name: string;
   type: string;
   address: string;
+  region?: string;
   departments: string;
   lastVisitDate: string;
   visitedBy: string;
@@ -135,6 +137,7 @@ export function demoFacilityAttributes(base: DemoAttributeBase): Record<string, 
     name: base.name,
     facility_type: base.type,
     address: base.address,
+    region: base.region ?? '',
     is_active: 'Так',
     settlement: '',
     phone: '',

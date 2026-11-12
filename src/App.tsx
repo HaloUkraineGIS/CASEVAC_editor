@@ -5,7 +5,8 @@ import { Menu } from 'lucide-react';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
 import { ToastProvider, useToast } from './components/ToastContext';
-import { areaPlans, eodPlans } from './data/planData';
+import { eodPlans } from './data/planData';
+import { groupFacilitiesByRegion } from './lib/facilityRegion';
 import { AreaPlanPage } from './pages/AreaPlanPage';
 import { EodPlanPage } from './pages/EodPlanPage';
 import { FacilitiesPage } from './pages/FacilitiesPage';
@@ -50,7 +51,7 @@ function AppFrame() {
         counts={{
           routes: snapshot.routes.length,
           facilities: snapshot.facilities.length,
-          areaPlans: areaPlans.length,
+          areaPlans: groupFacilitiesByRegion(snapshot.facilities).length,
           eodPlans: eodPlans.length,
         }}
       />
