@@ -4813,21 +4813,27 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background:
-    radial-gradient(circle at 20% 15%, #e8f3ed 0%, transparent 55%),
-    linear-gradient(160deg, #f7faf8 0%, #eef4f1 100%);
+  background: #15231fc2;
+  backdrop-filter: blur(3px);
   overflow-y: auto;
+  animation: fade-in 0.16s ease-out;
 }
-.route-builder-choice-inner {
-  width: min(620px, 100%);
+.route-builder-choice-dialog {
+  width: min(560px, 100%);
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #e4ebe7;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px #08191240;
+  animation: modal-in 0.18s ease-out;
 }
-.route-builder-choice-inner h3 {
+.route-builder-choice-dialog h3 {
   margin: 0 0 6px;
   font: 700 20px Manrope, sans-serif;
   color: #26392f;
   letter-spacing: -0.02em;
 }
-.route-builder-choice-inner > p {
+.route-builder-choice-dialog > p {
   margin: 0 0 18px;
   color: #7b8a83;
   font-size: 12px;
@@ -4958,6 +4964,26 @@ select:focus-visible {
   flex-wrap: wrap;
   gap: 6px;
 }
+.route-builder-tools .button {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+/* Кнопки керування геометрією: червона — увійти в редагування, синя — завершити. */
+.route-builder-edit-button {
+  background: #c62828;
+  border-color: #b02121;
+  color: #fff;
+  box-shadow: 0 2px 5px #c6282824;
+}
+.route-builder-edit-button:hover:not(:disabled) {
+  background: #ad2020;
+}
+.route-builder-edit-button-active,
+.route-builder-edit-button-active:hover:not(:disabled) {
+  background: #1e5fa8;
+  border-color: #1a5496;
+  box-shadow: 0 2px 5px #1e5fa824;
+}
 .route-builder-error {
   padding: 9px 11px;
   background: #fdf1ee;
@@ -4968,11 +4994,12 @@ select:focus-visible {
   line-height: 1.45;
 }
 .route-builder-actions {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(88px, auto) minmax(132px, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  flex: 0 0 auto;
+  justify-content: flex-end;
   gap: 8px;
+  flex: 0 0 auto;
   min-height: 64px;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid #e8edea;
@@ -4980,12 +5007,63 @@ select:focus-visible {
   box-sizing: border-box;
 }
 .route-builder-actions .button {
+  flex: 0 0 auto;
   min-width: 0;
   white-space: nowrap;
 }
 .route-builder-actions .button-primary {
-  width: 100%;
   min-width: 132px;
+}
+.route-builder-delete {
+  margin-right: auto;
+  justify-content: center;
+}
+/* Підтвердження видалення — модальна картка поверх планувальника. */
+.route-builder-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: #15231fc2;
+  backdrop-filter: blur(3px);
+  animation: fade-in 0.16s ease-out;
+}
+.route-builder-confirm-card {
+  width: min(100%, 400px);
+  padding: 22px 23px;
+  background: #fff;
+  border: 1px solid #e4ebe7;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px #08191240;
+  animation: modal-in 0.18s ease-out;
+}
+.route-builder-confirm-card h3 {
+  margin: 0 0 8px;
+  font: 700 15px Manrope, sans-serif;
+  color: #283a32;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.route-builder-confirm-card p {
+  margin: 0;
+  color: #7b8a83;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.route-builder-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.route-builder-confirm-actions .button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .route-builder-map {
   position: relative;

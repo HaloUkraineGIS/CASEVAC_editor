@@ -505,6 +505,9 @@ export function RouteBuilderModal({
   };
 
   const buildRoute = async () => {
+    // Автоматична побудова доступна лише для нового маршруту:
+    // під час редагування геометрію змінюємо тільки вручну.
+    if (isEditing) return;
     const from = startPointRef.current;
     const to = facilityRef.current?.location;
     if (!from || !to) {
@@ -1025,9 +1028,14 @@ export function RouteBuilderModal({
 
       <div className="route-builder-body">
         {builderMode === 'choose' && (
-          <div className="route-builder-choice" role="group" aria-label="Спосіб побудови маршруту">
-            <div className="route-builder-choice-inner">
-              <h3>Як побудувати маршрут?</h3>
+          <div className="route-builder-choice">
+            <div
+              className="route-builder-choice-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="route-builder-choice-title"
+            >
+              <h3 id="route-builder-choice-title">Як побудувати маршрут?</h3>
               <p>Оберіть спосіб — режим можна змінити пізніше.</p>
               <div className="route-builder-choice-grid">
                 <button
@@ -1147,7 +1155,7 @@ export function RouteBuilderModal({
                 )}
               </div>
 
-              {(builderMode === 'semi' || isEditing) && (
+              {builderMode === 'semi' && !isEditing && (
                 <div className="route-builder-auto">
                   <button
                     type="button"
@@ -1172,9 +1180,8 @@ export function RouteBuilderModal({
                         : 'Побудувати маршрут'}
                   </button>
                   <p className="route-builder-note">
-                    {isEditing
-                      ? 'Можна перебудувати лінію автоматично, а потім скоригувати точки вручну.'
-                      : 'Маршрут будується між початковою точкою ділянки та вибраним закладом. Після побудови точки можна перетягувати, додавати й видаляти.'}
+                    Маршрут будується між початковою точкою ділянки та вибраним закладом.
+                    Після побудови точки можна перетягувати, додавати й видаляти.
                   </p>
                 </div>
               )}
@@ -1190,7 +1197,13 @@ export function RouteBuilderModal({
 
               {points.length >= 2 && (
                 <div className="route-builder-tools">
-                  <button type="button" className="button button-secondary" onClick={editExistingLine}>
+                  <button
+                    type="button"
+                    className={`button route-builder-edit-button${
+                      geometryEditing ? ' route-builder-edit-button-active' : ''
+                    }`}
+                    onClick={editExistingLine}
+                  >
                     <PencilLine size={14} />
                     {geometryEditing ? 'Завершити редагування геометрії' : 'Редагувати полілінію'}
                   </button>
@@ -1226,11 +1239,15 @@ export function RouteBuilderModal({
               )}
 
               <p className="route-builder-note">
-                {points.length >= 2 && (geometryEditing || builderMode === 'semi')
+                {points.length >= 2 && geometryEditing
                   ? 'Перетягніть точку, щоб змінити лінію. Клік по точці-маркеру на лінії додає нову точку; права кнопка на точці видаляє її.'
-                  : builderMode === 'semi'
-                    ? 'Оберіть ділянку та заклад, потім натисніть «Побудувати маршрут».'
-                    : 'Клік на карту додає точку. Після завершення натисніть Enter або двічі клацніть. Точку можна перетягнути; видалити її можна правою кнопкою миші.'}
+                  : isEditing
+                    ? 'Натисніть «Редагувати полілінію», щоб перетягувати точки, додавати нові та видаляти зайві.'
+                    : points.length >= 2 && builderMode === 'semi'
+                      ? 'Перетягніть точку, щоб змінити лінію. Клік по точці-маркеру на лінії додає нову точку; права кнопка на точці видаляє її.'
+                      : builderMode === 'semi'
+                        ? 'Оберіть ділянку та заклад, потім натисніть «Побудувати маршрут».'
+                        : 'Клік на карту додає точку. Після завершення натисніть Enter або двічі клацніть. Точку можна перетягнути; видалити її можна правою кнопкою миші.'}
               </p>
 
               <div className="route-builder-tools">
@@ -1261,57 +1278,66 @@ export function RouteBuilderModal({
             )}
           </div>
 
-          {confirmDelete ? (
-            <div className="route-builder-actions route-builder-actions-confirm">
-              <span className="route-builder-confirm-text">
-                <strong>Видалити маршрут {route?.code || route?.id}?</strong>
-                <span>Дію не можна скасувати.</span>
-              </span>
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => setConfirmDelete(false)}
-                disabled={deleting}
+          {confirmDelete && (
+            <div className="route-builder-confirm">
+              <div
+                className="route-builder-confirm-card"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="route-builder-confirm-title"
               >
-                Скасувати
-              </button>
-              <button
-                type="button"
-                className="button button-danger"
-                onClick={() => void handleDelete()}
-                disabled={deleting}
-              >
-                {deleting ? <Loader2 size={16} className="spin" /> : <Trash2 size={16} />}
-                {deleting ? 'Видаляємо…' : 'Видалити'}
-              </button>
-            </div>
-          ) : (
-            <div className="route-builder-actions">
-              {isEditing && onDelete && (
-                <button
-                  type="button"
-                  className="button button-danger route-builder-delete"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={saving}
-                >
-                  <Trash2 size={15} />
-                  Видалити
-                </button>
-              )}
-              <button type="button" className="button button-secondary" onClick={requestClose}>
-                Скасувати
-              </button>
-              <button
-                type="button"
-                className="button button-primary"
-                onClick={() => void handleSubmit()}
-                disabled={saving}
-              >
-                {saving ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
-                {saving ? 'Зберігаємо…' : 'Зберегти зміни'}
-              </button>
+                <h3 id="route-builder-confirm-title">
+                  Видалити маршрут {route?.code || route?.id}?
+                </h3>
+                <p>Дію не можна скасувати. Маршрут буде видалено з переліку.</p>
+                <div className="route-builder-confirm-actions">
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={deleting}
+                  >
+                    Скасувати
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-danger"
+                    onClick={() => void handleDelete()}
+                    disabled={deleting}
+                  >
+                    {deleting ? <Loader2 size={16} className="spin" /> : <Trash2 size={16} />}
+                    {deleting ? 'Видаляємо…' : 'Видалити'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
+
+          <div className="route-builder-actions">
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                className="button button-danger route-builder-delete"
+                onClick={() => setConfirmDelete(true)}
+                disabled={saving}
+              >
+                <Trash2 size={15} />
+                Видалити
+              </button>
+            )}
+            <button type="button" className="button button-secondary" onClick={requestClose}>
+              Скасувати
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => void handleSubmit()}
+              disabled={saving}
+            >
+              {saving ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
+              {saving ? 'Зберігаємо…' : 'Зберегти зміни'}
+            </button>
+          </div>
         </aside>
 
         <div className="route-builder-map">
@@ -1396,9 +1422,11 @@ export function RouteBuilderModal({
             <div className="route-builder-hint">
               {geometryEditing
                 ? 'Перетягніть точку · клік по точці-маркеру на лінії — додати · права кнопка — видалити'
-                : builderMode === 'semi'
-                  ? 'Оберіть ділянку та заклад ліворуч і натисніть «Побудувати маршрут»'
-                  : 'Клік — додати точку · Enter або подвійний клік — завершити · перетягування — перемістити'}
+                : isEditing
+                  ? 'Натисніть «Редагувати полілінію», щоб змінити геометрію маршруту'
+                  : builderMode === 'semi'
+                    ? 'Оберіть ділянку та заклад ліворуч і натисніть «Побудувати маршрут»'
+                    : 'Клік — додати точку · Enter або подвійний клік — завершити · перетягування — перемістити'}
             </div>
           )}
         </div>
