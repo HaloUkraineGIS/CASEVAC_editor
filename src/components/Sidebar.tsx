@@ -1,4 +1,4 @@
-import { Activity, Building2, CircleHelp, Globe2, LogIn, LogOut, Map, ShieldAlert, X } from 'lucide-react';
+import { Activity, Building2, CircleHelp, Globe2, LogIn, LogOut, Map, X } from 'lucide-react';
 import type { PageId } from '../types';
 import { useAuth } from '../auth/AuthContext';
 import { useData } from '../data/DataContext';
@@ -15,7 +15,6 @@ interface SidebarProps {
     routes: number;
     facilities: number;
     areaPlans: number;
-    eodPlans: number;
   };
 }
 
@@ -38,10 +37,9 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
     { page: 'facilities', icon: Building2, count: counts.facilities },
     { page: 'routes', icon: Map, count: counts.routes },
   ];
-  const planNav: NavItem[] = [
-    { page: 'eod-plan', icon: ShieldAlert, count: counts.eodPlans },
-    { page: 'area-plan', icon: Globe2, count: counts.areaPlans },
-  ];
+  // Сторінка «Маршрути CASEVAC CDS» (eod-plan) вимкнена: пункт прибрано
+  // з навігації разом із підписом «Плани реагування».
+  const planNav: NavItem[] = [{ page: 'area-plan', icon: Globe2, count: counts.areaPlans }];
 
   const syncState = (() => {
     if (dataStatus === 'error')
@@ -130,7 +128,6 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
           </button>
         ))}
 
-        <span className="nav-caption nav-caption-lower">ПЛАНИ РЕАГУВАННЯ</span>
         {planNav.map((item) => (
           <button
             key={item.page}
