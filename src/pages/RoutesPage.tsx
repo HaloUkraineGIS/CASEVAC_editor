@@ -28,6 +28,7 @@ import {
   routeStatusLabel,
 } from '../lib/format';
 import { exportResponsePlan } from '../lib/docxExport';
+import { TASK_TEMPLATE_URL } from '../lib/templates';
 import type { RouteDraft, RouteRecord } from '../types';
 
 // Ліниво завантажуємо модальне вікно карти, щоб не тягнути ArcGIS-чанк у головний бандл
@@ -238,10 +239,10 @@ export function RoutesPage() {
           token: session.token,
         });
       } else {
-        // Інакше використовуємо локальний шаблон (враховуємо базовий шлях Vite)
-        const basePath = import.meta.env.BASE_URL || '/';
+        // Інакше використовуємо локальний шаблон із каталогу `template/`
+        // (імпорт через ?url дає коректний URL і в dev, і в build).
         await exportResponsePlan(activeRoute, minefield, minefield.attributes, facility, {
-          templatePath: `${basePath}template/task_accident-response-plan.docx`,
+          templatePath: TASK_TEMPLATE_URL,
         });
       }
 

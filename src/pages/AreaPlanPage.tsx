@@ -10,6 +10,7 @@ import {
   groupFacilitiesByRegion,
 } from '../lib/facilityRegion';
 import { exportRegionResponsePlan } from '../lib/regionDocxExport';
+import { REGION_TEMPLATE_URL } from '../lib/templates';
 
 const FacilitiesMap = lazy(() =>
   import('../components/FacilitiesMap').then((module) => ({ default: module.FacilitiesMap })),
@@ -88,12 +89,11 @@ export function AreaPlanPage() {
     setExporting(true);
     try {
       notify('Генеруємо план реагування…', 'info');
-      const basePath = import.meta.env.BASE_URL || '/';
       await exportRegionResponsePlan({
         region: selectedRegion,
         facilities: visibleFacilities,
         schema: facilitySchema,
-        templatePath: `${basePath}template/region_accident-response-plan.docx`,
+        templatePath: REGION_TEMPLATE_URL,
       });
       notify(`План реагування для області «${selectedRegion}» завантажено.`, 'success');
     } catch (error) {

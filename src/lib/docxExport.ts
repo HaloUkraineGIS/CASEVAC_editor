@@ -7,10 +7,9 @@
  * - Додаткові: current_year, created_by_medic, military_medic_group
  */
 
-import Docxtemplater from 'docxtemplater';
-import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import type { FacilityRecord, MinefieldRecord, RouteRecord } from '../types';
+import { createDocxDocument } from './docxTemplate';
 import { formatDate } from './format';
 
 /** Розширений MinefieldRecord з усіма полями для шаблону. */
@@ -74,6 +73,8 @@ export interface FacilityTemplateData {
 export interface TemplateData extends MinefieldTemplateData, FacilityTemplateData {
   current_year: string;
   created_by_medic: string;
+  /** Дата створення маршруту (атрибут created_date) у форматі ДД.ММ.РРРР. */
+  created_date: string;
 }
 
 /**
@@ -306,6 +307,9 @@ export function prepareTemplateData(
     ...facilityData,
     current_year: new Date().getFullYear().toString(),
     created_by_medic: route.surveyedBy || '',
+    // Дата створення маршруту — з атрибута created_date (у createdAt він
+    // потрапляє під час читання шару; див. ROUTE_CANDIDATES.createdAt).
+    created_date: formatAttributeDate(route.createdAt),
     // military_medic_group вже є в facilityData, просто перевизначаємо для ясності
     military_medic_group: facilityData.military_medic_group,
   };
@@ -324,11 +328,7 @@ export function generateDocument(
   filename: string,
 ): void {
   try {
-    const zip = new PizZip(templateBuffer);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-    });
+    const doc = createDocxDocument(templateBuffer);
 
     doc.render(data);
 
@@ -342,6 +342,17 @@ export function generateDocument(
     console.error('Помилка генерації документу:', error);
     throw new Error(`Не вдалося згенерувати документ: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+/**
+ * Очищує частину імені файлу: прибирає символи, заборонені у Windows,
+ * керуючі символи та зайві пробіли.
+ */
+function sanitizeFileNamePart(value: string): string {
+  return value
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -372,9 +383,8 @@ export async function exportResponsePlan(
   // Підготувати дані
   const data = prepareTemplateData(route, minefield, minefieldAttributes, facility);
 
-  // Згенерувати ім'я файлу: CASEVAC_{task_code}_{дата}.docx
-  const today = new Date().toISOString().slice(0, 10);
-  const filename = `CASEVAC_${route.code}_${today}.docx`;
+  // Ім'я файлу: Casevac_{task_name}_{task_code}.docx
+  const filename = `Casevac_${[route.taskName, route.code].map(sanitizeFileNamePart).filter(Boolean).join('_') || 'route'}.docx`;
 
   // Згенерувати і завантажити
   generateDocument(templateBuffer, data, filename);

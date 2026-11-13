@@ -14,7 +14,6 @@
  * редагування Word.
  */
 
-import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import type { FacilityRecord, FacilitySchema } from '../types';
@@ -23,6 +22,7 @@ import {
   loadLocalTemplate,
   type FacilityTemplateData,
 } from './docxExport';
+import { createDocxDocumentFromZip } from './docxTemplate';
 import { readFacilityRegion } from './facilityRegion';
 import { todayIso } from './format';
 
@@ -143,10 +143,7 @@ export async function exportRegionResponsePlan({
   injectFacilityLoop(zip);
 
   const data = prepareRegionTemplateData(region, facilities, schema);
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-  });
+  const doc = createDocxDocumentFromZip(zip);
   doc.render(data);
 
   const blob = doc.getZip().generate({

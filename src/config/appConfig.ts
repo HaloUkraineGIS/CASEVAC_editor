@@ -36,7 +36,7 @@ function defaultRedirectUri(): string {
 }
 
 export const appConfig = {
-  version: '0.5.11',
+  version: '0.5.12',
 
   /**
    * 'demo'  — локальні демонстраційні дані, вхід не потрібен (типово для розробки);
