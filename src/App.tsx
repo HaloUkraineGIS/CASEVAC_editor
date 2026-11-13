@@ -51,7 +51,7 @@ function AppFrame() {
         counts={{
           routes: snapshot.routes.length,
           facilities: snapshot.facilities.length,
-          areaPlans: groupFacilitiesByRegion(snapshot.facilities).length,
+          areaPlans: groupFacilitiesByRegion(snapshot.facilities, snapshot.facilitySchema).length,
           eodPlans: eodPlans.length,
         }}
       />

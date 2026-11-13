@@ -26,6 +26,7 @@ export interface MinefieldTemplateData {
 /** Дані закладу для шаблону (з атрибутів). */
 export interface FacilityTemplateData {
   full_name_ukr: string;
+  full_name_eng: string;
   type_of_hosp_ukr: string;
   type_of_hosp_eng: string;
   contact_ukr: string;
@@ -150,13 +151,74 @@ export function extractFacilityData(facility: FacilityRecord): FacilityTemplateD
   };
 
   const location = facility.location || [0, 0];
+  const phone = get('phone');
+  const email = get('email');
+  const contactFallback = [phone, email].filter(Boolean).join(', ');
+  const contactUkr = get('contact_ukr', contactFallback);
+
+  /**
+   * У частині шарів (зокрема в демо-даних) немає окремих полів можливостей
+   * та обладнання — там є лише текстові описи `departments`, `operations`,
+   * `equipment`. Виводимо позначки «+»/«-» з цих описів, щоб контактний
+   * лист не був порожнім. Якщо є явне поле (як у робочому шарі Portal),
+   * воно має приоритет.
+   */
+  const splitSegments = (value: string) =>
+    value
+      .toLowerCase()
+      .split(/[;,/]/)
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+  const clinicalSegments = splitSegments([get('departments'), get('operations')].join('; '));
+  const equipmentSegments = splitSegments([get('equipment'), get('departments')].join('; '));
+  const matches = (segments: string[], patterns: string[]) =>
+    segments.some((segment) =>
+      patterns.some((pattern) =>
+        // Короткі абревіатури (КТ, МРТ) шукаємо як окремий елемент,
+        // щоб не зловити випадковий збіг усередині іншого слова.
+        pattern.length <= 3 ? segment === pattern || segment.startsWith(`${pattern} `) : segment.includes(pattern),
+      ),
+    );
+
+  /** Явне yes/no-поле, інакше — висновок із текстового опису відділень. */
+  const capability = (key: string, patterns: string[], extraKey?: string) => {
+    const explicit = getYesNo(key) || (extraKey ? getYesNo(extraKey) : '');
+    if (explicit) return explicit;
+    if (clinicalSegments.length === 0) return '';
+    return matches(clinicalSegments, patterns) ? '+' : '-';
+  };
+
+  /** Явне yes/no-поле, інакше — висновок із текстового опису обладнання. */
+  const equipmentFlag = (key: string, patterns: string[], extraKey?: string) => {
+    const explicit = getYesNo(key) || (extraKey ? getYesNo(extraKey) : '');
+    if (explicit) return explicit;
+    if (equipmentSegments.length === 0) return '';
+    return matches(equipmentSegments, patterns) ? '+' : '-';
+  };
+
+  // «Хірургія» не повинна спрацьовувати на нейро-, щелепно-лицьову
+  // чи офтальмологічну хірургію — для них є окремі рядки.
+  const generalSurgery = (() => {
+    const explicit = getYesNo('surgical');
+    if (explicit) return explicit;
+    if (clinicalSegments.length === 0) return '';
+    const found = clinicalSegments.some(
+      (segment) =>
+        segment.includes('хірург') &&
+        !segment.includes('нейро') &&
+        !segment.includes('щелепно') &&
+        !segment.includes('офтальм'),
+    );
+    return found ? '+' : '-';
+  })();
 
   return {
     full_name_ukr: get('full_name_ukr', get('name_ukr', facility.name)),
+    full_name_eng: get('full_name_eng', get('name_eng', facility.name)),
     type_of_hosp_ukr: get('type_of_hospital', facility.type),
     type_of_hosp_eng: get('type_of_hosp_eng', ''),
-    contact_ukr: get('contact_ukr', ''),
-    contact_eng: get('contact_eng', ''),
+    contact_ukr: contactUkr,
+    contact_eng: get('contact_eng', contactUkr),
     address: get('address', facility.address),
     address_eng: get('address_eng', ''),
     phone: get('phone', ''),
@@ -166,28 +228,28 @@ export function extractFacilityData(facility: FacilityRecord): FacilityTemplateD
     council: get('council', ''),
     x: location[0].toFixed(6),
     y: location[1].toFixed(6),
-    // Можливості - перетворюємо yes/no на +/-
-    icu_ccu: getYesNo('icu_ccu'),
-    surgical: getYesNo('surgical'),
-    orthopaedic: getYesNo('orthopaedic'),
-    burn: getYesNo('burn'),
-    neurological: getYesNo('neurological'),
-    cardiology: getYesNo('cardiology'),
-    renal_urology: getYesNo('renal_urology'),
-    infection_disease: getYesNo('infection_disease'),
-    dental: getYesNo('dental'),
-    braine_surgical: getYesNo('braine_surgical'),
-    eye_injures_surgical: getYesNo('eye_injures_surgical'),
-    face_injures_surgical: getYesNo('face_injures_surgical'),
-    // Обладнання - перетворюємо yes/no на +/-
-    xray: getYesNo('xray'),
-    computer_tomography: getYesNo('computer_tomography'),
-    mri: getYesNo('mri'),
-    ultrasound: getYesNo('ultrasound'),
-    laboratory: getYesNo('laboratory'),
-    blood_products_available: getYesNo('blood_products_available'),
-    oxygen: getYesNo('oxygen'),
-    generator: getYesNo('generator'),
+    // Можливості — явні поля або висновок із текстових описів
+    icu_ccu: capability('icu_ccu', ['реанімац', 'інтенсивн'], 'has_icu'),
+    surgical: generalSurgery,
+    orthopaedic: capability('orthopaedic', ['ортопед', 'травматолог']),
+    burn: capability('burn', ['опік', 'опіков']),
+    neurological: capability('neurological', ['невролог']),
+    cardiology: capability('cardiology', ['кардіолог']),
+    renal_urology: capability('renal_urology', ['нефролог', 'уролог']),
+    infection_disease: capability('infection_disease', ['інфекційн']),
+    dental: capability('dental', ['стоматолог']),
+    braine_surgical: capability('braine_surgical', ['нейрохірург', 'нейро']),
+    eye_injures_surgical: capability('eye_injures_surgical', ['офтальм']),
+    face_injures_surgical: capability('face_injures_surgical', ['щелепно']),
+    // Обладнання — явні поля або висновок із текстових описів
+    xray: equipmentFlag('xray', ['рентген'], 'has_xray'),
+    computer_tomography: equipmentFlag('computer_tomography', ['комп', 'томограф', 'кт'], 'has_ct'),
+    mri: equipmentFlag('mri', ['мрт', 'магнітно'], 'has_mri'),
+    ultrasound: equipmentFlag('ultrasound', ['узд', 'ультразвук']),
+    laboratory: equipmentFlag('laboratory', ['лаборатор']),
+    blood_products_available: equipmentFlag('blood_products_available', ['кров']),
+    oxygen: equipmentFlag('oxygen', ['кисень', 'кисн']),
+    generator: equipmentFlag('generator', ['генератор']),
     // Медична група також перетворюється
     military_medic_group: getYesNo('military_medic_group'),
   };

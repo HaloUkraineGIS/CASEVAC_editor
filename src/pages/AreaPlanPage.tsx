@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { FileText, Globe2, Map, MapPin } from 'lucide-react';
+import { FileText, Globe2, Loader2, Map, MapPin } from 'lucide-react';
 import { DataStateGate, SnapshotNotices } from '../components/PageFooter';
 import { useToast } from '../components/ToastContext';
 import { useData } from '../data/DataContext';
@@ -8,6 +8,7 @@ import {
   filterFacilitiesByRegion,
   groupFacilitiesByRegion,
 } from '../lib/facilityRegion';
+import { exportRegionResponsePlan } from '../lib/regionDocxExport';
 
 const FacilitiesMap = lazy(() =>
   import('../components/FacilitiesMap').then((module) => ({ default: module.FacilitiesMap })),
@@ -26,14 +27,19 @@ export function AreaPlanPage() {
   const { notify } = useToast();
   const { snapshot, source } = useData();
   const facilities = snapshot.facilities;
+  const facilitySchema = snapshot.facilitySchema;
   const [selectedRegion, setSelectedRegion] = useState<string>(ALL_REGIONS);
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const regionGroups = useMemo(() => groupFacilitiesByRegion(facilities), [facilities]);
+  const regionGroups = useMemo(
+    () => groupFacilitiesByRegion(facilities, facilitySchema),
+    [facilities, facilitySchema],
+  );
   const visibleFacilities = useMemo(
-    () => filterFacilitiesByRegion(facilities, selectedRegion),
-    [facilities, selectedRegion],
+    () => filterFacilitiesByRegion(facilities, selectedRegion, facilitySchema),
+    [facilities, selectedRegion, facilitySchema],
   );
 
   // Якщо вибрана область зникла з даних — повертаємось до повного переліку.
@@ -47,6 +53,35 @@ export function AreaPlanPage() {
   const selectRegion = (region: string) => {
     setSelectedRegion(region);
     setSelectedFacilityId(null);
+  };
+
+  const canExport = selectedRegion !== ALL_REGIONS && visibleFacilities.length > 0;
+  const exportTitle =
+    selectedRegion === ALL_REGIONS
+      ? 'Оберіть область у таблиці ліворуч'
+      : visibleFacilities.length === 0
+        ? 'Для цієї області немає медичних закладів'
+        : 'Сформувати DOCX для вибраної області';
+
+  const handleExportPlan = async () => {
+    if (!canExport || exporting) return;
+    setExporting(true);
+    try {
+      notify('Генеруємо план реагування…', 'info');
+      const basePath = import.meta.env.BASE_URL || '/';
+      await exportRegionResponsePlan({
+        region: selectedRegion,
+        facilities: visibleFacilities,
+        schema: facilitySchema,
+        templatePath: `${basePath}template/region_accident-response-plan.docx`,
+      });
+      notify(`План реагування для області «${selectedRegion}» завантажено.`, 'success');
+    } catch (error) {
+      console.error('Помилка експорту плану області:', error);
+      notify(error instanceof Error ? error.message : 'Не вдалося згенерувати документ', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -67,12 +102,12 @@ export function AreaPlanPage() {
           </button>
           <button
             className="button button-primary"
-            onClick={() =>
-              notify('Формування плану реагування області — наступний етап (DOCX).', 'info')
-            }
+            onClick={() => void handleExportPlan()}
+            disabled={!canExport || exporting}
+            title={exporting ? 'Генеруємо документ…' : exportTitle}
           >
-            <FileText size={17} />
-            План реагування
+            {exporting ? <Loader2 size={17} className="spin" /> : <FileText size={17} />}
+            {exporting ? 'Генеруємо…' : 'План реагування'}
           </button>
         </div>
       </section>
