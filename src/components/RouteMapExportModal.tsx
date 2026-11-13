@@ -26,6 +26,7 @@ import {
   type RectMm,
 } from '../lib/printLayout';
 import { jpegToPdf } from '../lib/printPdf';
+import { loadSvgImage } from '../lib/svgImage';
 import {
   applyViewScale,
   autoScaleFor,
@@ -47,37 +48,6 @@ interface RouteMapExportModalProps {
 const PREVIEW_PX_PER_MM = 96 / 25.4;
 /** Роздільна здатність PDF-аркуша. */
 const EXPORT_DPI = 300;
-
-/** Завантажує SVG і повертає HTMLImageElement з гарантованими розмірами. */
-async function loadSvg(url: string): Promise<HTMLImageElement> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const svgText = await res.text();
-    let modified = svgText;
-    const vbMatch = svgText.match(/viewBox=["']\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*["']/);
-    if (vbMatch && (!svgText.includes('width=') || !svgText.includes('height='))) {
-      const [, , , vbW, vbH] = vbMatch;
-      modified = svgText.replace(/<svg\b([^>]*)>/, `<svg$1 width="${vbW}" height="${vbH}">`);
-    }
-    const blob = new Blob([modified], { type: 'image/svg+xml;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    return await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = (e) => reject(e);
-      img.src = blobUrl;
-    });
-  } catch {
-    return await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = (e) => reject(e);
-      img.src = url;
-    });
-  }
-}
 
 export function RouteMapExportModal({ route, facility, minefield, onClose }: RouteMapExportModalProps) {
   const { notify } = useToast();
@@ -222,11 +192,11 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
 
   useEffect(() => {
     const base = import.meta.env.BASE_URL || '/';
-    loadSvg(`${base}symbols/HALO%20Logo%20Dark.svg`)
+    loadSvgImage(`${base}symbols/HALO%20Logo%20Dark.svg`)
       .then((img) => setLogoImg(img))
       .catch((e) => console.warn('Logo SVG error:', e));
 
-    loadSvg(`${base}symbols/north-arrow.svg`)
+    loadSvgImage(`${base}symbols/north-arrow.svg`)
       .then((img) => setNorthImg(img))
       .catch((e) => console.warn('North arrow SVG error:', e));
   }, []);

@@ -22,6 +22,7 @@ interface RawUniqueValueInfo {
   value?: unknown;
   values?: unknown[][];
   symbol?: unknown;
+  label?: string;
 }
 
 interface RawRenderer extends JsonObject {
@@ -32,13 +33,15 @@ interface RawRenderer extends JsonObject {
   uniqueValueInfos?: RawUniqueValueInfo[];
   /** Групований список класів (відповідь REST `drawingInfo.renderer`). */
   uniqueValueGroups?: { classes?: RawUniqueValueInfo[] }[];
-  classBreakInfos?: { symbol?: unknown }[];
+  classBreakInfos?: { symbol?: unknown; label?: string }[];
   /** JS API пише `field`, REST — `field1`…`field3`. */
   field?: string;
   field1?: string;
   field2?: string;
   field3?: string;
   fieldDelimiter?: string;
+  /** Загальний підпис рендерера (не у всіх форматах). */
+  label?: string;
 }
 
 interface RawLayerResponse extends JsonObject {
@@ -218,4 +221,107 @@ export async function resolveLayerPointSymbol(
 
   symbolCache.set(key, request);
   return request;
+}
+
+export interface LayerLegendEntry {
+  label: string;
+  symbol: SymbolUnion;
+}
+
+/** Підпис класу легенди: явний label, значення або загальний підпис шару. */
+function legendEntryLabel(
+  info: RawUniqueValueInfo,
+  index: number,
+  total: number,
+  fallbackLabel: string,
+): string {
+  const explicit = typeof info.label === 'string' ? info.label.trim() : '';
+  if (explicit) return explicit;
+  if (total === 1 && fallbackLabel) return fallbackLabel;
+  const rawValue = info.value ?? info.values?.[0]?.[0];
+  if (rawValue !== undefined && rawValue !== null && String(rawValue).trim()) {
+    return String(rawValue);
+  }
+  return fallbackLabel ? `${fallbackLabel} ${index + 1}` : `Клас ${index + 1}`;
+}
+
+function rendererLegendItems(
+  renderer: RawRenderer,
+  fallbackLabel: string,
+): { label: string; symbolJson: unknown }[] {
+  switch (renderer.type) {
+    case 'unique-value':
+    case 'uniqueValue': {
+      const infos = rendererInfos(renderer);
+      return infos.map((info, index) => ({
+        label: legendEntryLabel(info, index, infos.length, fallbackLabel),
+        symbolJson: info.symbol,
+      }));
+    }
+    case 'class-breaks':
+    case 'classBreaks': {
+      const infos = renderer.classBreakInfos ?? [];
+      return infos.map((info, index) => ({
+        label:
+          (typeof info.label === 'string' && info.label.trim()) ||
+          (infos.length === 1 ? fallbackLabel : `${fallbackLabel} ${index + 1}`),
+        symbolJson: info.symbol,
+      }));
+    }
+    default:
+      return [
+        {
+          label: fallbackLabel || 'Медичні заклади',
+          symbolJson: pickSymbolJson(renderer, {}),
+        },
+      ];
+  }
+}
+
+/**
+ * Будує рядки легенди з рендерера шару.
+ *
+ * Потрібно для експорту карти області: на аркуші показуємо саме ті умовні
+ * позначення, які налаштовані в шарі «Медичні заклади», а не одну умовну
+ * позначку. Підкладка в легенду не потрапляє.
+ */
+export async function legendFromRenderer(
+  rendererJson: unknown,
+  fallbackLabel = 'Медичні заклади',
+): Promise<LayerLegendEntry[]> {
+  if (!rendererJson || typeof rendererJson !== 'object') return [];
+  const renderer = rendererJson as RawRenderer;
+  const rawItems = rendererLegendItems(renderer, fallbackLabel).filter((item) =>
+    isPointSymbolJson(item.symbolJson),
+  );
+
+  const entries = await Promise.all(
+    rawItems.map(async (item) => {
+      try {
+        const symbol = await symbolFromJSON(item.symbolJson);
+        return symbol ? { label: item.label, symbol: symbol as SymbolUnion } : null;
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[layerSymbols] Не вдалося створити символ легенди', error);
+        }
+        return null;
+      }
+    }),
+  );
+
+  // На A3-аркуші більше 8 рядків легенди вже нечитабельні.
+  return entries
+    .filter((entry): entry is LayerLegendEntry => entry !== null)
+    .slice(0, 8);
+}
+
+/** Читає рендерер безпосередньо із сервісу шару (без глобального кешу карти). */
+export async function resolveLayerLegendFromService(
+  url: string,
+  token?: string | null,
+  fallbackLabel = 'Медичні заклади',
+): Promise<LayerLegendEntry[]> {
+  const renderer = await getServiceRenderer(url, token);
+  if (!renderer) return [];
+  return legendFromRenderer(renderer, fallbackLabel);
 }

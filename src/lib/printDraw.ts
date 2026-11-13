@@ -20,6 +20,7 @@ import {
   type PrintLayout,
   type RectMm,
 } from './printLayout';
+import { areaMapFrame, type AreaLayout } from './areaPrintLayout';
 
 export interface SheetTexts {
   /** Перший рядок шапки, наприклад «CASEVAC 12.5 км». */
@@ -245,6 +246,28 @@ function drawLegendImage(
   ctx.drawImage(image, centerX - width / 2, centerY - height / 2, width, height);
 }
 
+/** Стандартна позначка закладу, якщо символ шару недоступний. */
+function drawFallbackFacilityMark(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  k: number,
+  dpi: number,
+): void {
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 2.4 * k, 0, Math.PI * 2);
+  ctx.fillStyle = FACILITY_BLUE;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 0.45 * k;
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = font(2.6, 700, dpi);
+  ctx.textAlign = 'center';
+  ctx.fillText('H', centerX, centerY + 0.1 * k);
+  ctx.textAlign = 'left';
+}
+
 function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number, symbols?: LegendSymbols): void {
   drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
   const k = dpi / 25.4;
@@ -272,18 +295,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number, sy
       if (symbols?.facility) {
         drawLegendImage(ctx, symbols.facility, centerX, cy, 5.6, dpi);
       } else {
-        ctx.beginPath();
-        ctx.arc(centerX, cy, 2.4 * k, 0, Math.PI * 2);
-        ctx.fillStyle = FACILITY_BLUE;
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 0.45 * k;
-        ctx.stroke();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = font(2.6, 700, dpi);
-        ctx.textAlign = 'center';
-        ctx.fillText('H', centerX, cy + 0.1 * k);
-        ctx.textAlign = 'left';
+        drawFallbackFacilityMark(ctx, centerX, cy, k, dpi);
       }
     } else if (row.kind === 'start') {
       if (symbols?.start) {
@@ -510,3 +522,133 @@ export function drawSheet(ctx: CanvasRenderingContext2D, options: SheetDrawOptio
   if (visible.scaleBar) drawScaleBar(ctx, layout.scaleBar, scale, dpi);
   if (visible.stamp) drawStamp(ctx, layout.stamp, dpi);
 }
+
+/** Рядок легенди A3-карти області. */
+export interface AreaLegendRow {
+  label: string;
+  image?: CanvasImageSource | null;
+}
+
+export interface AreaSheetDrawOptions {
+  page: PageMm;
+  layout: AreaLayout;
+  /** Заголовок у верхньому блоці, наприклад «Медичні заклади Київської області». */
+  title: string;
+  /** Масштаб карти (знаменник). */
+  scale: number;
+  dpi: number;
+  logo?: CanvasImageSource | null;
+  northArrow?: CanvasImageSource | null;
+  /** Умовні позначення лише шару медичних закладів. */
+  legendRows: AreaLegendRow[];
+}
+
+function drawAreaHeader(
+  ctx: CanvasRenderingContext2D,
+  rect: RectMm,
+  title: string,
+  dpi: number,
+): void {
+  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
+  const k = dpi / 25.4;
+  const maxWidth = (rect.wMm - 8) * k;
+  const size = fitFont(ctx, title, maxWidth, 5.6, 700, dpi, 2.8);
+
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = font(size, 700, dpi);
+  ctx.fillText(title, (rect.xMm + rect.wMm / 2) * k, (rect.yMm + rect.hMm / 2) * k);
+}
+
+function drawAreaLegend(
+  ctx: CanvasRenderingContext2D,
+  rect: RectMm,
+  rows: AreaLegendRow[],
+  dpi: number,
+): void {
+  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
+  const k = dpi / 25.4;
+  const left = (rect.xMm + 3) * k;
+
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = font(3.1, 700, dpi);
+  ctx.fillText('Умовні позначення', left, (rect.yMm + 5) * k);
+
+  const visibleRows = rows.length > 0 ? rows.slice(0, 8) : [{ label: 'Медичні заклади' }];
+  const rowH = Math.max(4.8, (rect.hMm - 10) / visibleRows.length);
+  const markerX = (rect.xMm + 9) * k;
+  const labelLeft = (rect.xMm + 15.5) * k;
+  const labelMaxWidth = Math.max(1, (rect.wMm - 17) * k);
+
+  visibleRows.forEach((row, index) => {
+    const cyMm = rect.yMm + 9 + rowH * index + rowH / 2;
+    const cy = cyMm * k;
+
+    if (row.image) {
+      drawLegendImage(ctx, row.image, markerX, cy, 5.8, dpi);
+    } else {
+      drawFallbackFacilityMark(ctx, markerX, cy, k, dpi);
+    }
+
+    const size = fitFont(ctx, row.label, labelMaxWidth, 2.8, 500, dpi, 1.8);
+    ctx.fillStyle = INK;
+    ctx.font = font(size, 500, dpi);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(row.label, labelLeft, cy);
+  });
+}
+
+/** Блок «Погоджено ____________» у нижньому лівому куті. */
+function drawAreaApproval(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): void {
+  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
+  const k = dpi / 25.4;
+  const paddingMm = 3.5;
+  const centerY = (rect.yMm + rect.hMm / 2) * k;
+
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = font(3.2, 500, dpi);
+  ctx.fillText('Погоджено', (rect.xMm + paddingMm) * k, centerY);
+
+  const textWidthMm = ctx.measureText('Погоджено').width / k;
+  const lineStartMm = rect.xMm + paddingMm + textWidthMm + 4;
+  const lineEndMm = rect.xMm + rect.wMm - paddingMm - 2;
+  if (lineEndMm > lineStartMm) {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = (0.35 * dpi) / 25.4;
+    ctx.beginPath();
+    ctx.moveTo(lineStartMm * k, centerY + 1.1 * k);
+    ctx.lineTo(lineEndMm * k, centerY + 1.1 * k);
+    ctx.stroke();
+  }
+}
+
+/**
+ * Малює A3-аркуш області: карта вже намальована під цим полотном, функція
+ * додає лише рамку та елементи оформлення. Легенда містить тільки шар
+ * медичних закладів — підкладка в неї не додається.
+ */
+export function drawAreaSheet(ctx: CanvasRenderingContext2D, options: AreaSheetDrawOptions): void {
+  const { page, layout, title, scale, dpi, logo, northArrow, legendRows } = options;
+
+  const frame = areaMapFrame(page);
+  const framePx = toPx(frame, dpi);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = (0.4 * dpi) / 25.4;
+  ctx.strokeRect(framePx.x, framePx.y, framePx.w, framePx.h);
+
+  drawAreaHeader(ctx, layout.header, title, dpi);
+
+  if (logo) drawImageFit(ctx, logo, layout.logo, dpi, 0);
+  if (northArrow) drawImageFit(ctx, northArrow, layout.north, dpi, 0);
+
+  drawAreaLegend(ctx, layout.legend, legendRows, dpi);
+  drawScaleBar(ctx, layout.scaleBar, scale, dpi);
+  drawAreaApproval(ctx, layout.stamp, dpi);
+}
+

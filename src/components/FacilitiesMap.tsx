@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type Collection from '@arcgis/core/core/Collection.js';
 import Point from '@arcgis/core/geometry/Point.js';
 import Graphic from '@arcgis/core/Graphic.js';
-import type FeatureLayer from '@arcgis/core/layers/FeatureLayer.js';
-import type GroupLayer from '@arcgis/core/layers/GroupLayer.js';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer.js';
-import type Layer from '@arcgis/core/layers/Layer.js';
-import type MapImageLayer from '@arcgis/core/layers/MapImageLayer.js';
-import type Sublayer from '@arcgis/core/layers/support/Sublayer.js';
 import Map from '@arcgis/core/Map.js';
 import MapView from '@arcgis/core/views/MapView.js';
 import WebMap from '@arcgis/core/WebMap.js';
@@ -18,6 +12,12 @@ import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useAuth } from '../auth/AuthContext';
 import { appConfig } from '../config/appConfig';
 import { isVisitStale } from '../lib/format';
+import {
+  findMedicalTarget,
+  isolateMedicalLayers,
+  readObjectId,
+  type MedicalTarget,
+} from '../lib/medicalLayers';
 import { BASEMAP_OPTIONS, createBasemap, type BasemapKey } from '../lib/osmBasemap';
 import { registerPortalToken } from '../lib/portalToken';
 import type { FacilityRecord, LonLat } from '../types';
@@ -79,13 +79,6 @@ const WEBMAP_TIMEOUT_MS = 15000;
 
 type MapMode = 'webmap' | 'fallback';
 
-interface MedicalTarget {
-  layer: Layer | Sublayer;
-  objectIdField: string;
-  /** Початковий вираз шару у веб-карті, який не можна губити. */
-  baseExpression: string;
-}
-
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
     promise,
@@ -93,96 +86,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
       setTimeout(() => resolve(null), ms);
     }),
   ]);
-}
-
-/** Чи це шар медичних закладів (за назвою або URL сервісу). */
-function isMedicalLayer(candidate: { title?: string | null; url?: string | null }): boolean {
-  const title = (candidate.title ?? '').toLowerCase();
-  // Check for medical facilities layer by title (English or Ukrainian)
-  const titleMatch = title.includes('medical') ||
-    title.includes('медичних') ||
-    title.includes('заклад') ||
-    // Also check for partial matches like 'Medical' alone if no other match
-    title === 'medical';
-  if (titleMatch) return true;
-  const url = (candidate.url ?? '').toLowerCase();
-  // URL match against configured facilities service URL
-  const urlMatch = url.length > 0 && url.startsWith(appConfig.services.facilities.url.toLowerCase());
-  return urlMatch;
-}
-
-/**
- * Ховає всі шари веб-карти, крім «Medical facilities». Групи лишаються
- * видимими, якщо всередині є медичний шар; у MapImageLayer видимими
- * лишаються тільки медичні підшари.
- */
-function isolateMedicalLayers(layers: Collection<Layer>): boolean {
-  let anyVisible = false;
-  layers.forEach((layer) => {
-    // Шар сервісу закладів може бути цілим MapImageLayer — тоді лишаємо його підшари.
-    const layerMatch = isMedicalLayer(layer);
-    let visible = layerMatch;
-    if (layer.type === 'group') {
-      visible = isolateMedicalLayers((layer as GroupLayer).layers) || layerMatch;
-    } else if (layer.type === 'map-image') {
-      let visibleSublayer = false;
-      (layer as MapImageLayer).sublayers?.forEach((sublayer) => {
-        const match = layerMatch || isMedicalLayer(sublayer);
-        sublayer.visible = match;
-        visibleSublayer = visibleSublayer || match;
-      });
-      visible = layerMatch || visibleSublayer;
-    }
-    layer.visible = visible;
-    anyVisible = anyVisible || visible;
-  });
-  return anyVisible;
-}
-
-/** Знаходить шар медичних закладів для фільтрації та визначення OBJECTID. */
-function findMedicalTarget(layers: Collection<Layer>): MedicalTarget | null {
-  const items = layers.toArray();
-  for (const layer of items) {
-    if (layer.type === 'group') {
-      const nested = findMedicalTarget((layer as GroupLayer).layers);
-      if (nested) return nested;
-      continue;
-    }
-    if (layer.type === 'map-image') {
-      const mapImage = layer as MapImageLayer;
-      for (const sublayer of mapImage.sublayers?.toArray() ?? []) {
-        if (isMedicalLayer(sublayer)) {
-          return {
-            layer: sublayer,
-            objectIdField: 'objectid',
-            baseExpression: sublayer.definitionExpression ?? '',
-          };
-        }
-      }
-    }
-    if (layer.type === 'feature' && isMedicalLayer(layer)) {
-      const featureLayer = layer as FeatureLayer;
-      return {
-        layer,
-        objectIdField: featureLayer.objectIdField || 'objectid',
-        baseExpression: featureLayer.definitionExpression ?? '',
-      };
-    }
-  }
-  return null;
-}
-
-/** OBJECTID з атрибутів графіка (назва поля у різних шарах відрізняється). */
-function readObjectId(attributes: Record<string, unknown>, field: string): number | undefined {
-  const direct = attributes[field];
-  const directNumber = typeof direct === 'number' ? direct : Number(direct);
-  if (direct !== undefined && direct !== null && Number.isFinite(directNumber)) return directNumber;
-  for (const [key, value] of Object.entries(attributes)) {
-    if (!key.toLowerCase().endsWith('objectid')) continue;
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
 }
 
 /**

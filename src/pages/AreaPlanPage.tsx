@@ -15,6 +15,12 @@ const FacilitiesMap = lazy(() =>
   import('../components/FacilitiesMap').then((module) => ({ default: module.FacilitiesMap })),
 );
 
+const AreaMapExportModal = lazy(() =>
+  import('../components/AreaMapExportModal').then((module) => ({
+    default: module.AreaMapExportModal,
+  })),
+);
+
 /** «1 заклад», «2 заклади», «5 закладів». */
 function facilityCountLabel(count: number): string {
   const mod10 = count % 10;
@@ -36,6 +42,7 @@ export function AreaPlanPage() {
   const [selectedRegion, setSelectedRegion] = useState<string>(ALL_REGIONS);
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapExportOpen, setMapExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const regionGroups = useMemo(
@@ -68,6 +75,14 @@ export function AreaPlanPage() {
         ? 'Для цієї області немає медичних закладів'
         : 'Сформувати DOCX для вибраної області';
 
+  const canCreateMap = canExport;
+  const mapTitle =
+    selectedRegion === ALL_REGIONS
+      ? 'Оберіть область у таблиці ліворуч'
+      : visibleFacilities.length === 0
+        ? 'Для цієї області немає медичних закладів'
+        : 'Налаштувати та експортувати карту області у форматі A3';
+
   const handleExportPlan = async () => {
     if (!canExport || exporting) return;
     setExporting(true);
@@ -98,9 +113,9 @@ export function AreaPlanPage() {
         <div className="heading-actions">
           <button
             className="button button-secondary"
-            onClick={() =>
-              notify('Створення карти області — наступний етап: експорт A4/A3 у 300 dpi.', 'info')
-            }
+            onClick={() => setMapExportOpen(true)}
+            disabled={!canCreateMap}
+            title={mapTitle}
           >
             <Map size={17} />
             Створити карту
@@ -201,6 +216,16 @@ export function AreaPlanPage() {
           </aside>
         </section>
       </DataStateGate>
+
+      {mapExportOpen && canCreateMap && (
+        <Suspense fallback={null}>
+          <AreaMapExportModal
+            region={selectedRegion}
+            facilities={visibleFacilities}
+            onClose={() => setMapExportOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
