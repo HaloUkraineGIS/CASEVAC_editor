@@ -67,15 +67,20 @@ export function areaDefaultLayout(
   const margin = AREA_PRINT_MARGIN_MM;
   const scaleBar = scaleBarSpec(scaleDenominator);
 
-  const headerW = landscape ? 280 : 200;
-  const headerH = 22;
-  const logoW = landscape ? 34 : 30;
-  const logoH = 22;
-  const northW = 22;
-  const northH = 30;
+  // Блок шапки удвічі менший за початковий, і по ширині, і по висоті.
+  const headerW = landscape ? 140 : 100;
+  const headerH = 11;
+  // Логотип і стрілка півночі — ті самі розміри, що й на A4-карті маршруту
+  // (17×12 / 8×12 мм в альбомній, 17×11 / 8×11 мм у портретній).
+  const logoW = 17;
+  const logoH = landscape ? 12 : 11;
+  const northW = 8;
+  const northH = landscape ? 12 : 11;
   const legendW = landscape ? 82 : 80;
   const legendH = legendHeightMm(legendRows);
-  const stampW = landscape ? 150 : 105;
+  // Вузький блок «Погоджено»: риска підпису коротша приблизно в 4 рази, ніж
+  // була за повної ширини (див. drawAreaApproval).
+  const stampW = landscape ? 60 : 48;
   const stampH = 16;
 
   return {

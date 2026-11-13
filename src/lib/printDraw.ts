@@ -253,6 +253,7 @@ function drawFallbackFacilityMark(
   centerY: number,
   k: number,
   dpi: number,
+  withLetter = true,
 ): void {
   ctx.beginPath();
   ctx.arc(centerX, centerY, 2.4 * k, 0, Math.PI * 2);
@@ -261,11 +262,13 @@ function drawFallbackFacilityMark(
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 0.45 * k;
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = font(2.6, 700, dpi);
-  ctx.textAlign = 'center';
-  ctx.fillText('H', centerX, centerY + 0.1 * k);
-  ctx.textAlign = 'left';
+  if (withLetter) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(2.6, 700, dpi);
+    ctx.textAlign = 'center';
+    ctx.fillText('H', centerX, centerY + 0.1 * k);
+    ctx.textAlign = 'left';
+  }
 }
 
 function drawLegend(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number, symbols?: LegendSymbols): void {
@@ -590,7 +593,9 @@ function drawAreaLegend(
     if (row.image) {
       drawLegendImage(ctx, row.image, markerX, cy, 5.8, dpi);
     } else {
-      drawFallbackFacilityMark(ctx, markerX, cy, k, dpi);
+      // Резервна позначка A3 повторює символ графіки демо-карти (синє коло
+      // без літери), щоб легенда не показувала довільний маркер.
+      drawFallbackFacilityMark(ctx, markerX, cy, k, dpi, false);
     }
 
     const size = fitFont(ctx, row.label, labelMaxWidth, 2.8, 500, dpi, 1.8);

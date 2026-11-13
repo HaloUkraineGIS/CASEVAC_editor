@@ -12,6 +12,9 @@ import { renderPreviewHTML } from '@arcgis/core/symbols/support/symbolUtils.js';
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    // Зовнішні символи (наприклад, picture-marker із URL Portal) завантажуємо
+    // з CORS, інакше зображення «забруднить» canvas і PDF не вдасться зберегти.
+    if (!src.startsWith('data:')) image.crossOrigin = 'anonymous';
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error('Не вдалося завантажити зображення символу'));
     image.src = src;
@@ -19,19 +22,37 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 function elementToImage(element: HTMLElement): Promise<HTMLImageElement> | null {
-  const tag = element.tagName.toLowerCase();
+  // `renderPreviewHTML` повертає контейнер <div>, усередині якого лежить
+  // <svg> (звичайні символи) або <img> (picture-marker). Беремо саме вкладений
+  // елемент — інакше всі позначки легенди були б порожніми.
+  const target = element.matches('svg, img')
+    ? element
+    : element.querySelector<SVGElement | HTMLImageElement>('svg, img');
+  if (!target) return null;
+
+  const tag = target.tagName.toLowerCase();
 
   if (tag === 'img') {
-    const src = (element as HTMLImageElement).src;
+    const src = (target as HTMLImageElement).src;
     return src ? loadImage(src) : null;
   }
 
   if (tag !== 'svg') return null;
 
+  const svg = target as SVGElement;
+  // Для коректного naturalWidth/naturalHeight у SVG мають бути явні розміри.
+  if (!svg.getAttribute('width') || !svg.getAttribute('height')) {
+    const viewBox = svg.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);
+    const width = viewBox?.length === 4 ? viewBox[2] : 48;
+    const height = viewBox?.length === 4 ? viewBox[3] : 48;
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+  }
+
   // Вбудовані зображення (imageData) уже містяться в SVG, тому серіалізований
   // рядок є самодостатнім і не потребує доступу до сервісу.
-  const svg = new XMLSerializer().serializeToString(element);
-  return loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  const serialized = new XMLSerializer().serializeToString(svg);
+  return loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`);
 }
 
 function pictureMarkerDataUrl(symbol: SymbolUnion): string | null {

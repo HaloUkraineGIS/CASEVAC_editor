@@ -138,8 +138,16 @@ function isPointSymbolJson(symbol: unknown): boolean {
   if (type === 'esriSMS' || type === 'esriPMS') return true;
   if (type === 'simple-marker' || type === 'picture-marker') return true;
   if (type === 'cim') {
-    const dataType = (symbol as { data?: { type?: string } }).data?.type;
-    return typeof dataType === 'string' && dataType.includes('Point');
+    const data = (symbol as { data?: { type?: string; symbol?: { type?: string } } }).data;
+    const dataType = data?.type ?? '';
+    const nestedType = data?.symbol?.type ?? '';
+    // CIM-символ із веб-карти найчастіше приходить як CIMSymbolReference,
+    // усередині якого лежить CIMPointSymbol.
+    return (
+      dataType.includes('Point') ||
+      nestedType.includes('Point') ||
+      (dataType === 'CIMSymbolReference' && Boolean(data?.symbol))
+    );
   }
   return false;
 }
@@ -249,7 +257,17 @@ function rendererLegendItems(
   renderer: RawRenderer,
   fallbackLabel: string,
 ): { label: string; symbolJson: unknown }[] {
-  switch (renderer.type) {
+  // У веб-карті `type` може бути відсутнім; визначаємо його за складом
+  // рендерера, щоб усе одно взяти символи саме з карти.
+  const type =
+    renderer.type ??
+    (renderer.uniqueValueInfos?.length || renderer.uniqueValueGroups?.length
+      ? 'unique-value'
+      : renderer.classBreakInfos?.length
+        ? 'class-breaks'
+        : 'simple');
+
+  switch (type) {
     case 'unique-value':
     case 'uniqueValue': {
       const infos = rendererInfos(renderer);
@@ -313,6 +331,30 @@ export async function legendFromRenderer(
   return entries
     .filter((entry): entry is LayerLegendEntry => entry !== null)
     .slice(0, 8);
+}
+
+/**
+ * Один символ точки з рендерера сервісу шару.
+ *
+ * Потрібен, коли веб-карта не віддала рендерер (наприклад, MapImageLayer):
+ * сервер усе одно малює об'єкти згідно зі своїм `drawingInfo.renderer`, тому
+ * цей символ відповідає позначці на карті, а не довільному маркеру.
+ */
+export async function resolveServicePointSymbol(
+  url: string,
+  token?: string | null,
+  attributes: Record<string, unknown> = {},
+): Promise<SymbolUnion | null> {
+  const renderer = await getServiceRenderer(url, token);
+  if (!renderer) return null;
+  const symbolJson = pickSymbolJson(renderer, attributes);
+  if (!isPointSymbolJson(symbolJson)) return null;
+  try {
+    const symbol = await symbolFromJSON(symbolJson);
+    return (symbol as SymbolUnion | null) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Читає рендерер безпосередньо із сервісу шару (без глобального кешу карти). */

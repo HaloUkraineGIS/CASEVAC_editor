@@ -137,7 +137,7 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
         setMapNotice(result.notice);
 
         await applyViewScale(result.view, initialCenter, initialScale).catch(() => undefined);
-        const rows = await buildAreaLegendRows(result, token);
+        const rows = await buildAreaLegendRows(result, token, facilitiesRef.current);
         if (cancelled) return;
         setLegendRows(rows);
         setMapReady(true);

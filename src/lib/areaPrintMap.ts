@@ -22,7 +22,11 @@ import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol.js';
 import { appConfig } from '../config/appConfig';
 import { AREA_MIN_AUTO_SCALE } from './areaPrintLayout';
 import { autoScaleFor, geometryCenter } from './printMap';
-import { legendFromRenderer, resolveLayerLegendFromService } from './layerSymbols';
+import {
+  legendFromRenderer,
+  resolveLayerLegendFromService,
+  resolveServicePointSymbol,
+} from './layerSymbols';
 import {
   findMedicalTarget,
   isolateMedicalLayers,
@@ -235,6 +239,7 @@ export async function createAreaSheetView(
 export async function buildAreaLegendRows(
   handle: AreaMapHandle,
   token: string | null,
+  facilities: FacilityRecord[] = [],
 ): Promise<AreaLegendRowData[]> {
   const fallback = async (): Promise<AreaLegendRowData[]> => [
     {
@@ -250,6 +255,9 @@ export async function buildAreaLegendRows(
   if (!layer) return fallback();
 
   let entries = [] as Awaited<ReturnType<typeof legendFromRenderer>>;
+
+  // 1. Рендерер завантаженої веб-карти — саме ним намальовані заклади на
+  //    експортній карті. Це основне джерело умовних позначень легенди.
   try {
     if (layer.renderer?.toJSON) {
       entries = await legendFromRenderer(layer.renderer.toJSON(), 'Медичні заклади');
@@ -258,6 +266,8 @@ export async function buildAreaLegendRows(
     entries = [];
   }
 
+  // 2. Якщо веб-карта не віддала рендерер (MapImageLayer, CIM без toJSON),
+  //    беремо drawingInfo.renderer того самого сервісу, який малює шар.
   if (entries.length === 0 && layer.url) {
     try {
       entries = await resolveLayerLegendFromService(layer.url, token, 'Медичні заклади');
@@ -266,14 +276,31 @@ export async function buildAreaLegendRows(
     }
   }
 
+  // 3. Останній придатний шлях — один символ для атрибутів показаного закладу.
+  if (entries.length === 0 && layer.url) {
+    try {
+      const symbol = await resolveServicePointSymbol(
+        layer.url,
+        token,
+        facilities[0]?.attributes ?? {},
+      );
+      if (symbol) entries = [{ label: 'Медичні заклади', symbol }];
+    } catch {
+      entries = [];
+    }
+  }
+
   if (entries.length === 0) return fallback();
 
-  return Promise.all(
+  const rows = await Promise.all(
     entries.map(async (entry) => ({
       label: entry.label || 'Медичні заклади',
       image: await symbolPreviewImage(entry.symbol),
     })),
   );
+  // Якщо жоден символ не вдалося відрендерити — показуємо символ, яким
+  // реально намальовані заклади на демо-карті, а не довільну позначку.
+  return rows.some((row) => row.image) ? rows : fallback();
 }
 
 /** Автоматичний масштаб A3-карти: усі заклади вміщуються з запасом. */
