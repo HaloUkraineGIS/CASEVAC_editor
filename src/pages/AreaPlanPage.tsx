@@ -5,6 +5,7 @@ import { useToast } from '../components/ToastContext';
 import { useData } from '../data/DataContext';
 import {
   ALL_REGIONS,
+  filterActiveFacilities,
   filterFacilitiesByRegion,
   groupFacilitiesByRegion,
 } from '../lib/facilityRegion';
@@ -26,7 +27,11 @@ function facilityCountLabel(count: number): string {
 export function AreaPlanPage() {
   const { notify } = useToast();
   const { snapshot, source } = useData();
-  const facilities = snapshot.facilities;
+  // На сторінці показуємо лише активні заклади (is_active = yes).
+  const facilities = useMemo(
+    () => filterActiveFacilities(snapshot.facilities),
+    [snapshot.facilities],
+  );
   const facilitySchema = snapshot.facilitySchema;
   const [selectedRegion, setSelectedRegion] = useState<string>(ALL_REGIONS);
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);

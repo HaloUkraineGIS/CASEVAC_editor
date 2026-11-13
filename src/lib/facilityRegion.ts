@@ -105,3 +105,13 @@ export function filterFacilitiesByRegion(
   }
   return facilities.filter((facility) => readFacilityRegion(facility, schema) === region);
 }
+
+/**
+ * Лише активні заклади (`is_active = yes/так/true/1`).
+ *
+ * На сторінці «План реагування на область» неактивні заклади не показуються
+ * ні в переліку, ні на карті, ні в експортованому документі.
+ */
+export function filterActiveFacilities(facilities: FacilityRecord[]): FacilityRecord[] {
+  return facilities.filter((facility) => facility.isActive);
+}

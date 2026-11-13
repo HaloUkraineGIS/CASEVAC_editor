@@ -4,12 +4,13 @@
  *
  * Особливості шаблону:
  * - `{region}` на першій сторінці заповнюється доменним підписом області;
- * - таблиця «КОНТАКТНИЙ ЛИСТ ЛІКАРНІ» повторюється для кожного закладу,
- *   відібраного за вибраною областю.
+ * - блок лікарні — заголовок «КОНТАКТНИЙ ЛИСТ ЛІКАРНІ», таблиця та рядок
+ *   «Складено\перевірено {status_date} {created_by_medic}» — повторюється
+ *   для кожного активного закладу, відібраного за вибраною областю.
  *
  * Шаблон не змінюється на диску: перед рендерингом у `word/document.xml`
  * тимчасово додаються теги циклу `{#facilities}` / `{/facilities}` навколо
- * контактного листа. Це дозволяє використовувати наявний файл без ручного
+ * цього блоку. Це дозволяє використовувати наявний файл без ручного
  * редагування Word.
  */
 
@@ -26,6 +27,7 @@ import { readFacilityRegion } from './facilityRegion';
 import { formatDate, todayIso } from './format';
 
 const CONTACT_SHEET_TITLE = 'КОНТАКТНИЙ ЛИСТ ЛІКАРНІ';
+const SIGNATURE_TITLE = 'Складено\\перевірено';
 const LOOP_OPEN = '{#facilities}';
 const LOOP_CLOSE = '{/facilities}';
 
@@ -67,7 +69,11 @@ export function prepareRegionTemplateData(
   };
 }
 
-/** Додає навколо контактного листа цикл Docxtemplater. */
+/**
+ * Додає цикл Docxtemplater навколо повного блоку лікарні:
+ * заголовок «КОНТАКТНИЙ ЛИСТ ЛІКАРНІ», таблиця та рядок
+ * «Складено\перевірено {status_date} {created_by_medic}».
+ */
 function injectFacilityLoop(zip: PizZip): void {
   const documentFile = zip.file('word/document.xml');
   if (!documentFile) {
@@ -94,16 +100,29 @@ function injectFacilityLoop(zip: PizZip): void {
     throw new Error('Не вдалося визначити межі таблиці контактного листа у шаблоні.');
   }
 
-  const tableClose = tableEnd + '</w:tbl>'.length;
+  // Рядок «Складено\перевірено …» стоїть після таблиці й теж має
+  // повторюватися для кожної лікарні разом із заголовком і таблицею.
+  const signatureMarker = xml.indexOf(SIGNATURE_TITLE, tableEnd);
+  if (signatureMarker === -1) {
+    throw new Error(
+      `У шаблоні не знайдено рядок «${SIGNATURE_TITLE}». Перевірте файл шаблону.`,
+    );
+  }
+  const signatureEnd = xml.indexOf('</w:p>', signatureMarker);
+  if (signatureEnd === -1) {
+    throw new Error(`Не вдалося визначити межу рядка «${SIGNATURE_TITLE}» у шаблоні.`);
+  }
+
+  const blockEnd = signatureEnd + '</w:p>'.length;
   const tagParagraph = (value: string) =>
     `<w:p><w:r><w:t xml:space="preserve">${value}</w:t></w:r></w:p>`;
 
   xml =
     xml.slice(0, headingStart) +
     tagParagraph(LOOP_OPEN) +
-    xml.slice(headingStart, tableClose) +
+    xml.slice(headingStart, blockEnd) +
     tagParagraph(LOOP_CLOSE) +
-    xml.slice(tableClose);
+    xml.slice(blockEnd);
 
   zip.file('word/document.xml', xml);
 }

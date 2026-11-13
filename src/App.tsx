@@ -6,7 +6,7 @@ import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
 import { ToastProvider, useToast } from './components/ToastContext';
 import { eodPlans } from './data/planData';
-import { groupFacilitiesByRegion } from './lib/facilityRegion';
+import { groupFacilitiesByRegion, filterActiveFacilities } from './lib/facilityRegion';
 import { AreaPlanPage } from './pages/AreaPlanPage';
 import { EodPlanPage } from './pages/EodPlanPage';
 import { FacilitiesPage } from './pages/FacilitiesPage';
@@ -51,7 +51,10 @@ function AppFrame() {
         counts={{
           routes: snapshot.routes.length,
           facilities: snapshot.facilities.length,
-          areaPlans: groupFacilitiesByRegion(snapshot.facilities, snapshot.facilitySchema).length,
+          areaPlans: groupFacilitiesByRegion(
+            filterActiveFacilities(snapshot.facilities),
+            snapshot.facilitySchema,
+          ).length,
           eodPlans: eodPlans.length,
         }}
       />
