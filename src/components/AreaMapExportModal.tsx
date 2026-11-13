@@ -75,6 +75,7 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
   const currentScale = userScale === 'auto' ? calculatedAutoScale : userScale;
 
   const [legendRows, setLegendRows] = useState<AreaLegendRow[]>(DEFAULT_LEGEND_ROWS);
+  const [legendSource, setLegendSource] = useState('');
   const layout = useMemo(
     () => areaDefaultLayout(page, legendRows.length, currentScale),
     [page, legendRows.length, currentScale],
@@ -89,6 +90,7 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
   // при зміні масштабу чи орієнтації.
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<MapView | null>(null);
+  const stopWatchRef = useRef<{ remove?: () => void } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
   const [mapNotice, setMapNotice] = useState('');
@@ -132,15 +134,38 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
         }
         handle = result;
         viewRef.current = result.view;
+        if (import.meta.env.DEV) {
+          (window as unknown as Record<string, unknown>).__areaMapView = result.view;
+        }
         setMapMode(result.mode);
         setBasemapTitle(result.basemapTitle);
         setMapNotice(result.notice);
 
         await applyViewScale(result.view, initialCenter, initialScale).catch(() => undefined);
-        const rows = await buildAreaLegendRows(result, token, facilitiesRef.current);
+        const legend = await buildAreaLegendRows(result, token, facilitiesRef.current);
         if (cancelled) return;
-        setLegendRows(rows);
+        setLegendRows(legend.rows);
+        setLegendSource(legend.source);
         setMapReady(true);
+
+        // Легенда залежить від кадру: коли користувач панорамує карту,
+        // перераховуємо її за об'єктами, які лишилися в екстенті.
+        let refreshPending = false;
+        const stopWatch = result.view.watch('stationary', (stationary) => {
+          if (!stationary || cancelled || refreshPending) return;
+          refreshPending = true;
+          void buildAreaLegendRows(result, token, facilitiesRef.current)
+            .then((updated) => {
+              if (cancelled) return;
+              setLegendRows(updated.rows);
+              setLegendSource(updated.source);
+            })
+            .catch(() => undefined)
+            .finally(() => {
+              refreshPending = false;
+            });
+        });
+        stopWatchRef.current = stopWatch;
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -152,6 +177,12 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
     return () => {
       cancelled = true;
       viewRef.current = null;
+      try {
+        stopWatchRef.current?.remove?.();
+      } catch {
+        // Ігноруємо: вид уже знищено разом із вотчером.
+      }
+      stopWatchRef.current = null;
       handle?.view.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,6 +459,13 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
               <span className="print-control-label">Підкладка</span>
               <p className="print-control-hint" style={{ margin: 0 }}>
                 {basemapTitle || 'Завантаження…'}
+              </p>
+            </div>
+
+            <div className="print-control">
+              <span className="print-control-label">Умовні позначення</span>
+              <p className="print-control-hint" style={{ margin: 0 }}>
+                {legendSource || 'Завантаження…'}
               </p>
             </div>
 

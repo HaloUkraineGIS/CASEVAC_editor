@@ -25,6 +25,16 @@ interface RawUniqueValueInfo {
   label?: string;
 }
 
+interface RawClassBreakInfo {
+  symbol?: unknown;
+  label?: string;
+  /** JS API toJSON() пише minValue/maxValue, REST — classMinValue/classMaxValue. */
+  minValue?: unknown;
+  maxValue?: unknown;
+  classMinValue?: unknown;
+  classMaxValue?: unknown;
+}
+
 interface RawRenderer extends JsonObject {
   type?: string;
   symbol?: unknown;
@@ -33,7 +43,7 @@ interface RawRenderer extends JsonObject {
   uniqueValueInfos?: RawUniqueValueInfo[];
   /** Групований список класів (відповідь REST `drawingInfo.renderer`). */
   uniqueValueGroups?: { classes?: RawUniqueValueInfo[] }[];
-  classBreakInfos?: { symbol?: unknown; label?: string }[];
+  classBreakInfos?: RawClassBreakInfo[];
   /** JS API пише `field`, REST — `field1`…`field3`. */
   field?: string;
   field1?: string;
@@ -297,20 +307,91 @@ function rendererLegendItems(
 }
 
 /**
+ * Індекси класів легенди, які реально трапляються в переданих об'єктах.
+ *
+ * Повертає `null`, коли відфільтрувати неможливо або непотрібно:
+ * простий рендерер (один знак для всіх), відсутні поля рендерера в атрибутах
+ * або жоден об'єкт не збігся з класами (тоді показуємо все, а не порожнечу).
+ * Інакше — множина індексів зі списку `rendererLegendItems()`.
+ */
+export function matchedLegendIndexes(
+  rendererJson: unknown,
+  attributesList: Record<string, unknown>[],
+): Set<number> | null {
+  if (!rendererJson || typeof rendererJson !== 'object') return null;
+  if (attributesList.length === 0) return null;
+  const renderer = rendererJson as RawRenderer;
+  const type =
+    renderer.type ??
+    (renderer.uniqueValueInfos?.length || renderer.uniqueValueGroups?.length
+      ? 'unique-value'
+      : renderer.classBreakInfos?.length
+        ? 'class-breaks'
+        : 'simple');
+
+  if (type === 'unique-value' || type === 'uniqueValue') {
+    const infos = rendererInfos(renderer);
+    const delimiter = renderer.fieldDelimiter ?? ',';
+    const matched = new Set<number>();
+    let anyValues = false;
+    for (const attributes of attributesList) {
+      const values = rendererValues(renderer, attributes);
+      if (!values) continue;
+      anyValues = true;
+      const index = infos.findIndex((info) => infoMatches(info, values, delimiter));
+      if (index >= 0) matched.add(index);
+    }
+    return anyValues && matched.size > 0 ? matched : null;
+  }
+
+  if (type === 'class-breaks' || type === 'classBreaks') {
+    const infos = renderer.classBreakInfos ?? [];
+    const fields = [renderer.field, renderer.field1].filter(
+      (field): field is string => typeof field === 'string' && field.length > 0,
+    );
+    if (fields.length === 0 || infos.length === 0) return null;
+    const matched = new Set<number>();
+    let anyValues = false;
+    for (const attributes of attributesList) {
+      const raw = readAttribute(attributes, fields[0]);
+      const value = typeof raw === 'number' ? raw : Number(raw);
+      if (!Number.isFinite(value)) continue;
+      anyValues = true;
+      const index = infos.findIndex((info) => {
+        const min = Number(info.minValue ?? info.classMinValue);
+        const max = Number(info.maxValue ?? info.classMaxValue);
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return false;
+        return value >= min && value <= max;
+      });
+      if (index >= 0) matched.add(index);
+    }
+    return anyValues && matched.size > 0 ? matched : null;
+  }
+
+  return null;
+}
+
+/**
  * Будує рядки легенди з рендерера шару.
  *
  * Потрібно для експорту карти області: на аркуші показуємо саме ті умовні
  * позначення, які налаштовані в шарі «Медичні заклади», а не одну умовну
  * позначку. Підкладка в легенду не потрапляє.
+ *
+ * Якщо передано атрибути об'єктів (`attributesList`), залишаються лише класи,
+ * які реально трапляються в цих об'єктах, — а не всі класи шару.
  */
 export async function legendFromRenderer(
   rendererJson: unknown,
   fallbackLabel = 'Медичні заклади',
+  attributesList: Record<string, unknown>[] = [],
 ): Promise<LayerLegendEntry[]> {
   if (!rendererJson || typeof rendererJson !== 'object') return [];
   const renderer = rendererJson as RawRenderer;
-  const rawItems = rendererLegendItems(renderer, fallbackLabel).filter((item) =>
-    isPointSymbolJson(item.symbolJson),
+  const matched = matchedLegendIndexes(renderer, attributesList);
+  const rawItems = rendererLegendItems(renderer, fallbackLabel).filter(
+    (item, index) =>
+      (matched === null || matched.has(index)) && isPointSymbolJson(item.symbolJson),
   );
 
   const entries = await Promise.all(
@@ -362,8 +443,9 @@ export async function resolveLayerLegendFromService(
   url: string,
   token?: string | null,
   fallbackLabel = 'Медичні заклади',
+  attributesList: Record<string, unknown>[] = [],
 ): Promise<LayerLegendEntry[]> {
   const renderer = await getServiceRenderer(url, token);
   if (!renderer) return [];
-  return legendFromRenderer(renderer, fallbackLabel);
+  return legendFromRenderer(renderer, fallbackLabel, attributesList);
 }

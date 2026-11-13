@@ -5,8 +5,13 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer.js';
 import Map from '@arcgis/core/Map.js';
 import MapView from '@arcgis/core/views/MapView.js';
 import WebMap from '@arcgis/core/WebMap.js';
-import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol.js';
 import Legend from '@arcgis/core/widgets/Legend.js';
+import {
+  FACILITY_SELECTED_SYMBOL,
+  FACILITY_SELECTION_RING,
+  FACILITY_STALE_SYMBOL,
+  FACILITY_VERIFIED_SYMBOL,
+} from '../lib/facilitySymbols';
 import { Layers3, Loader2, MapPinOff, Maximize2, Minimize2 } from 'lucide-react';
 import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useAuth } from '../auth/AuthContext';
@@ -42,34 +47,12 @@ interface FacilitiesMapProps {
   fitKey?: string;
 }
 
-const VERIFIED_SYMBOL = new SimpleMarkerSymbol({
-  style: 'circle',
-  size: 8,
-  color: [66, 170, 120],
-  outline: { color: [255, 255, 255], width: 1 },
-});
-
-const STALE_SYMBOL = new SimpleMarkerSymbol({
-  style: 'circle',
-  size: 8,
-  color: [214, 163, 82],
-  outline: { color: [255, 255, 255], width: 1 },
-});
-
-const SELECTED_SYMBOL = new SimpleMarkerSymbol({
-  style: 'circle',
-  size: 16,
-  color: [190, 92, 71],
-  outline: { color: [255, 255, 255], width: 2 },
-});
-
-/** Кільце навколо вибраного закладу, коли символи дає шар веб-карти. */
-const SELECTION_RING = new SimpleMarkerSymbol({
-  style: 'circle',
-  size: 24,
-  color: [0, 0, 0, 0],
-  outline: { color: [21, 122, 90], width: 2.5 },
-});
+// Символи спільні з експортом A3-карти області — щоб позначки в легенді
+// збігалися з маркерами на обох картах.
+const VERIFIED_SYMBOL = FACILITY_VERIFIED_SYMBOL;
+const STALE_SYMBOL = FACILITY_STALE_SYMBOL;
+const SELECTED_SYMBOL = FACILITY_SELECTED_SYMBOL;
+const SELECTION_RING = FACILITY_SELECTION_RING;
 
 const CENTER_FALLBACK: LonLat = [31.0, 49.3];
 /** Скільки чекаємо на готовність MapView, перш ніж показати карту без підкладки. */

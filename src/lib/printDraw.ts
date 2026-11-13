@@ -580,7 +580,14 @@ function drawAreaLegend(
   ctx.font = font(3.1, 700, dpi);
   ctx.fillText('Умовні позначення', left, (rect.yMm + 5) * k);
 
-  const visibleRows = rows.length > 0 ? rows.slice(0, 8) : [{ label: 'Медичні заклади' }];
+  if (rows.length === 0) {
+    ctx.fillStyle = INK;
+    ctx.font = font(2.6, 400, dpi);
+    ctx.fillText('Немає даних', left, (rect.yMm + 12) * k);
+    return;
+  }
+
+  const visibleRows = rows.slice(0, 8);
   const rowH = Math.max(4.8, (rect.hMm - 10) / visibleRows.length);
   const markerX = (rect.xMm + 9) * k;
   const labelLeft = (rect.xMm + 15.5) * k;
@@ -590,12 +597,10 @@ function drawAreaLegend(
     const cyMm = rect.yMm + 9 + rowH * index + rowH / 2;
     const cy = cyMm * k;
 
+    // Малюємо лише реальний символ шару. Якщо його не вдалося відтворити,
+    // не підставляємо довільний маркер — краще порожнє місце, ніж неправда.
     if (row.image) {
       drawLegendImage(ctx, row.image, markerX, cy, 5.8, dpi);
-    } else {
-      // Резервна позначка A3 повторює символ графіки демо-карти (синє коло
-      // без літери), щоб легенда не показувала довільний маркер.
-      drawFallbackFacilityMark(ctx, markerX, cy, k, dpi, false);
     }
 
     const size = fitFont(ctx, row.label, labelMaxWidth, 2.8, 500, dpi, 1.8);

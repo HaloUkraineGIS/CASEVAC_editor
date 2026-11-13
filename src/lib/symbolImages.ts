@@ -21,7 +21,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function elementToImage(element: HTMLElement): Promise<HTMLImageElement> | null {
+/**
+ * Перетворює елемент попереднього перегляду символу (як його малює ArcGIS)
+ * на `Image`. Підтримує як сам `<svg>`/`<img>`, так і контейнер навколо них.
+ */
+export function legendElementToImage(element: HTMLElement): Promise<HTMLImageElement> | null {
   // `renderPreviewHTML` повертає контейнер <div>, усередині якого лежить
   // <svg> (звичайні символи) або <img> (picture-marker). Беремо саме вкладений
   // елемент — інакше всі позначки легенди були б порожніми.
@@ -71,12 +75,18 @@ export async function symbolPreviewImage(
   if (!symbol) return null;
 
   try {
+    // WebStyleSymbol та частина CIM-символів доступні лише після load().
+    const loadable = symbol as { load?: () => Promise<unknown>; loaded?: boolean };
+    if (loadable.loaded === false && typeof loadable.load === 'function') {
+      await loadable.load();
+    }
+
     const dataUrl = pictureMarkerDataUrl(symbol);
     if (dataUrl) return await loadImage(dataUrl);
 
     const element = await renderPreviewHTML(symbol, { size: { width: 48, height: 48 } });
     if (!element) return null;
-    const image = elementToImage(element);
+    const image = legendElementToImage(element);
     return image ? await image : null;
   } catch (error) {
     if (import.meta.env.DEV) {
