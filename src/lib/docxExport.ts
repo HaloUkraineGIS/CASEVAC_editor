@@ -10,7 +10,7 @@
 import { saveAs } from 'file-saver';
 import type { FacilityRecord, MinefieldRecord, RouteRecord } from '../types';
 import { createDocxDocument } from './docxTemplate';
-import { formatDate } from './format';
+import { formatDate, formatDateLongUk } from './format';
 
 /** Розширений MinefieldRecord з усіма полями для шаблону. */
 export interface MinefieldTemplateData {
@@ -309,7 +309,8 @@ export function prepareTemplateData(
     created_by_medic: route.surveyedBy || '',
     // Дата створення маршруту — з атрибута created_date (у createdAt він
     // потрапляє під час читання шару; див. ROUTE_CANDIDATES.createdAt).
-    created_date: formatAttributeDate(route.createdAt),
+    // Формат — «14 жовтня 2026».
+    created_date: formatDateLongUk(route.createdAt),
     // military_medic_group вже є в facilityData, просто перевизначаємо для ясності
     military_medic_group: facilityData.military_medic_group,
   };

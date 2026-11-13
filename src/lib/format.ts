@@ -33,6 +33,29 @@ export function formatDate(value: string | undefined | null, fallback = '—'): 
   return date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/** Назви місяців у родовому відмінку для дат виду «14 жовтня 2026». */
+const UK_MONTHS_GENITIVE = [
+  'січня',
+  'лютого',
+  'березня',
+  'квітня',
+  'травня',
+  'червня',
+  'липня',
+  'серпня',
+  'вересня',
+  'жовтня',
+  'листопада',
+  'грудня',
+];
+
+/** Дата у форматі «14 жовтня 2026». */
+export function formatDateLongUk(value: string | undefined | null, fallback = ''): string {
+  const date = parseDate(value);
+  if (!date) return fallback;
+  return `${date.getDate()} ${UK_MONTHS_GENITIVE[date.getMonth()]} ${date.getFullYear()}`;
+}
+
 /** Скільки повних місяців минуло з дати (null — дата некоректна). */
 export function monthsSince(value: string | undefined | null): number | null {
   const date = parseDate(value);
