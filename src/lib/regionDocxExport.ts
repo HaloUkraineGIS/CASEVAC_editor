@@ -24,7 +24,7 @@ import {
   type FacilityTemplateData,
 } from './docxExport';
 import { readFacilityRegion } from './facilityRegion';
-import { formatDate, todayIso } from './format';
+import { todayIso } from './format';
 
 const CONTACT_SHEET_TITLE = 'КОНТАКТНИЙ ЛИСТ ЛІКАРНІ';
 const SIGNATURE_TITLE = 'Складено\\перевірено';
@@ -34,8 +34,6 @@ const LOOP_CLOSE = '{/facilities}';
 export interface RegionTemplateData {
   current_year: string;
   region: string;
-  status_date: string;
-  created_by_medic: string;
   facilities: FacilityTemplateData[];
 }
 
@@ -62,9 +60,8 @@ export function prepareRegionTemplateData(
   return {
     current_year: String(new Date().getFullYear()),
     region: regionLabel,
-    status_date: formatDate(todayIso(), ''),
-    // Підпис залишаємо порожнім: документ можна підписати після друку.
-    created_by_medic: '',
+    // status_date і created_by_medic беруться з атрибутів кожного закладу
+    // в extractFacilityData(), бо рядок підпису повторюється в циклі.
     facilities: facilities.map((facility) => extractFacilityData(facility)),
   };
 }

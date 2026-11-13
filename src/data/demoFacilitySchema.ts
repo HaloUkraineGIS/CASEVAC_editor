@@ -158,6 +158,8 @@ export function demoFacilityAttributes(base: DemoAttributeBase): Record<string, 
     notes: '',
     last_visit_date: base.lastVisitDate,
     visited_by: base.visitedBy,
+    status_date: base.lastVisitDate,
+    created_by_medic: base.visitedBy,
     ...base.extra,
   };
 }

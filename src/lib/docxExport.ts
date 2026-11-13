@@ -11,6 +11,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import type { FacilityRecord, MinefieldRecord, RouteRecord } from '../types';
+import { formatDate } from './format';
 
 /** Розширений MinefieldRecord з усіма полями для шаблону. */
 export interface MinefieldTemplateData {
@@ -63,6 +64,10 @@ export interface FacilityTemplateData {
   oxygen: string;
   generator: string;
   military_medic_group: string;
+  /** Дата оновлення статусу закладу (атрибут status_date). */
+  status_date: string;
+  /** Медик, який склав/перевірив картку (атрибут created_by_medic). */
+  created_by_medic: string;
 }
 
 /** Повний набір даних для заповнення шаблону. */
@@ -124,6 +129,32 @@ export function extractMinefieldData(
     locality_ukr: get('locality_ukr') || get('locality'),
     imsma_hazard_code: get('imsma_hazard_code') || get('hazard_code'),
   };
+}
+
+/**
+ * Дата з атрибута закладу у форматі ДД.ММ.РРРР.
+ *
+ * ArcGIS віддає поля типу date як epoch-мілісекунди, демо-дані — як ISO
+ * або вже готовий рядок ДД.ММ.РРРР. Порожнє значення лишаємо порожнім.
+ */
+function formatAttributeDate(value: unknown): string {
+  if (value === undefined || value === null || value === '') return '';
+
+  const fromDate = (date: Date): string =>
+    Number.isNaN(date.getTime()) ? '' : formatDate(date.toISOString(), '');
+
+  if (typeof value === 'number') {
+    // Деякі сервіси віддають секунди, а не мілісекунди.
+    return fromDate(new Date(value < 1e12 ? value * 1000 : value));
+  }
+
+  const text = String(value).trim();
+  if (!text) return '';
+  if (/^\d{10,14}$/.test(text)) {
+    const numeric = Number(text);
+    return fromDate(new Date(numeric < 1e12 ? numeric * 1000 : numeric));
+  }
+  return formatDate(text, '');
 }
 
 /**
@@ -252,6 +283,9 @@ export function extractFacilityData(facility: FacilityRecord): FacilityTemplateD
     generator: equipmentFlag('generator', ['генератор']),
     // Медична група також перетворюється
     military_medic_group: getYesNo('military_medic_group'),
+    // Дата статусу та підпис медика — з атрибутів самого закладу.
+    status_date: formatAttributeDate(attrs['status_date']),
+    created_by_medic: get('created_by_medic'),
   };
 }
 
