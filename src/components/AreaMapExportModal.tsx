@@ -4,7 +4,6 @@ import { Download, Loader2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from './ToastContext';
-import { todayIso } from '../lib/format';
 import { jpegToPdf } from '../lib/printPdf';
 import { loadSvgImage } from '../lib/svgImage';
 import { scaleLabel, type Orientation } from '../lib/printLayout';
@@ -365,7 +364,7 @@ export function AreaMapExportModal({ region, facilities, onClose }: AreaMapExpor
         { blob: jpeg, widthPx: canvas.width, heightPx: canvas.height },
         page,
       );
-      saveAs(pdf, `CASEVAC_map_${region}_${todayIso()}.pdf`);
+      saveAs(pdf, `Карта медзакладів - ${region} область.pdf`);
       notify('PDF карту області успішно збережено', 'success');
     } catch (error) {
       console.error(error);

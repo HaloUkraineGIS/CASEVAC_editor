@@ -78,15 +78,23 @@ export function areaDefaultLayout(
   const northH = landscape ? 12 : 11;
   const legendW = landscape ? 82 : 80;
   const legendH = legendHeightMm(legendRows);
-  // Вузький блок «Погоджено»: риска підпису коротша приблизно в 4 рази, ніж
-  // була за повної ширини (див. drawAreaApproval).
-  const stampW = landscape ? 60 : 48;
+  // Логотип і стрілка півночі стоять на 3 мм усередину від рамки карти,
+  // щоб не дотикатися до неї.
+  const frameGap = 3;
+  // Вузький блок «Погоджено ________ Медичний працівник»: текст в один рядок
+  // у нижній частині блоку, над ним лишається місце для підпису на папері.
+  const stampW = landscape ? 100 : 92;
   const stampH = 16;
 
   return {
     header: { xMm: W / 2 - headerW / 2, yMm: margin, wMm: headerW, hMm: headerH },
-    logo: { xMm: margin, yMm: margin, wMm: logoW, hMm: logoH },
-    north: { xMm: W - margin - northW, yMm: margin, wMm: northW, hMm: northH },
+    logo: { xMm: margin + frameGap, yMm: margin + frameGap, wMm: logoW, hMm: logoH },
+    north: {
+      xMm: W - margin - frameGap - northW,
+      yMm: margin + frameGap,
+      wMm: northW,
+      hMm: northH,
+    },
     legend: { xMm: W - margin - legendW, yMm: H - margin - legendH, wMm: legendW, hMm: legendH },
     scaleBar: {
       xMm: W / 2 - scaleBar.frameWMm / 2,

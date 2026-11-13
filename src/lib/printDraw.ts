@@ -59,6 +59,9 @@ const INK = '#111111';
 const FACILITY_BLUE = '#2d6fbf';
 const ROUTE_RED = '#e53935';
 
+/** Товщина контурів елементів A3-аркуша області (рамка, шапка, легенда, блок підпису). */
+const AREA_LINE_MM = 0.4;
+
 function font(sizeMm: number, weight: number, dpi: number): string {
   return `${weight} ${(sizeMm * dpi) / 25.4}px ${FONT_FAMILY}`;
 }
@@ -552,7 +555,7 @@ function drawAreaHeader(
   title: string,
   dpi: number,
 ): void {
-  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
+  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: AREA_LINE_MM });
   const k = dpi / 25.4;
   const maxWidth = (rect.wMm - 8) * k;
   const size = fitFont(ctx, title, maxWidth, 5.6, 700, dpi, 2.8);
@@ -570,7 +573,7 @@ function drawAreaLegend(
   rows: AreaLegendRow[],
   dpi: number,
 ): void {
-  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
+  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: AREA_LINE_MM });
   const k = dpi / 25.4;
   const left = (rect.xMm + 3) * k;
 
@@ -612,30 +615,56 @@ function drawAreaLegend(
   });
 }
 
-/** Блок «Погоджено ____________» у нижньому лівому куті. */
+/**
+ * Блок «Погоджено ________ Медичний працівник» у нижньому лівому куті.
+ *
+ * Статичний блок для паперового підпису: текст стоїть нижче середини блоку,
+ * щоб над рискою лишилося місце для підпису після друку.
+ */
 function drawAreaApproval(ctx: CanvasRenderingContext2D, rect: RectMm, dpi: number): void {
-  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: 0.4 });
+  drawBox(ctx, rect, dpi, { fill: '#ffffff', border: INK, borderMm: AREA_LINE_MM });
   const k = dpi / 25.4;
-  const paddingMm = 3.5;
-  const centerY = (rect.yMm + rect.hMm / 2) * k;
+  const first = 'Погоджено';
+  const second = 'Медичний працівник';
+  const pad = 3.5;
+  const gap = 4;
+  const minLine = 18;
+  const textY = (rect.yMm + rect.hMm * 0.68) * k;
 
   ctx.fillStyle = INK;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.font = font(3.2, 500, dpi);
-  ctx.fillText('Погоджено', (rect.xMm + paddingMm) * k, centerY);
 
-  const textWidthMm = ctx.measureText('Погоджено').width / k;
-  const lineStartMm = rect.xMm + paddingMm + textWidthMm + 4;
-  const lineEndMm = rect.xMm + rect.wMm - paddingMm - 2;
-  if (lineEndMm > lineStartMm) {
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = (0.35 * dpi) / 25.4;
-    ctx.beginPath();
-    ctx.moveTo(lineStartMm * k, centerY + 1.1 * k);
-    ctx.lineTo(lineEndMm * k, centerY + 1.1 * k);
-    ctx.stroke();
+  let size = 3.2;
+  let w1 = 0;
+  let w2 = 0;
+  let lineLen = minLine;
+  for (;;) {
+    ctx.font = font(size, 500, dpi);
+    w1 = ctx.measureText(first).width / k;
+    w2 = ctx.measureText(second).width / k;
+    const avail = rect.wMm - pad * 2 - w1 - w2 - gap * 2;
+    if (avail >= minLine || size <= 2.2) {
+      lineLen = Math.max(8, avail);
+      break;
+    }
+    size = Math.max(2.2, size - 0.2);
   }
+
+  ctx.font = font(size, 500, dpi);
+  const leftMm = rect.xMm + pad;
+  ctx.fillText(first, leftMm * k, textY);
+
+  const lineStartMm = leftMm + w1 + gap;
+  const lineEndMm = lineStartMm + lineLen;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = (AREA_LINE_MM * dpi) / 25.4;
+  ctx.beginPath();
+  ctx.moveTo(lineStartMm * k, textY + 1.1 * k);
+  ctx.lineTo(lineEndMm * k, textY + 1.1 * k);
+  ctx.stroke();
+
+  ctx.fillText(second, (lineEndMm + gap) * k, textY);
 }
 
 /**
@@ -649,7 +678,7 @@ export function drawAreaSheet(ctx: CanvasRenderingContext2D, options: AreaSheetD
   const frame = areaMapFrame(page);
   const framePx = toPx(frame, dpi);
   ctx.strokeStyle = INK;
-  ctx.lineWidth = (0.4 * dpi) / 25.4;
+  ctx.lineWidth = (AREA_LINE_MM * dpi) / 25.4;
   ctx.strokeRect(framePx.x, framePx.y, framePx.w, framePx.h);
 
   drawAreaHeader(ctx, layout.header, title, dpi);
