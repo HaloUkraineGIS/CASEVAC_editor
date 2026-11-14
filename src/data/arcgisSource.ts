@@ -43,6 +43,10 @@ const ROUTE_CANDIDATES: Record<string, string[]> = {
   taskName: ['task_name', 'taskname', 'task_name_ukr', 'tasknameukr'],
   facilityGuid: ['med_facility_guid', 'med_facility_globalid', 'facility_guid'],
   isCurrent: ['is_current', 'iscurrent', 'actual', 'is_active'],
+  /** Тип завдання ділянки (поле task_type шару маршрутів). */
+  taskType: ['task_type', 'tasktype'],
+  /** Ознака перевірки даних маршруту. */
+  dataChecked: ['data_checked', 'datachecked'],
   surveyedBy: ['surveyed_by', 'surveyedby', 'surveyed', 'created_by_medic'],
   surveyDate: ['survey_date', 'surveydate', 'last_edited_date', 'created_date'],
   createdAt: ['created_date', 'creation_date', 'creationdate'],
@@ -154,6 +158,27 @@ const CURRENT_DOMAIN_VALUE = /^(так|yes|true|1|actual|current|актуаль�
 
 /** Значення домену, яке позначає неактуальний маршрут. */
 const INACTIVE_DOMAIN_VALUE = /^(ні|no|false|0|inactive|неактуальн)/i;
+
+/** Значення домену, яке позначає ствердну відповідь (для data_checked). */
+const AFFIRMATIVE_DOMAIN_VALUE = /^(так|yes|true|1)/i;
+
+/**
+ * Текстове значення атрибута ділянки: регістронезалежний пошук за кількома
+ * варіантами назви поля. Назви полів у сервісі ділянок можуть відрізнятися
+ * регістром, тому точний збіг не гарантований.
+ */
+function minefieldText(attributes: Record<string, unknown>, ...names: string[]): string {
+  const lowered = new Map(
+    Object.entries(attributes).map(([key, value]) => [key.toLowerCase(), value]),
+  );
+  for (const name of names) {
+    const value = lowered.get(name.toLowerCase());
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
 
 /**
  * Приводить значення до типу поля шару: коди домену, дата в мілісекундах,
@@ -594,6 +619,21 @@ export function createArcGisSource(token: string): DataSource {
     put('surveyDate', surveyDate);
     if (withCreatedAt) put('createdAt', todayIso());
     put('length', lengthKm);
+
+    // Додаткові поля з шару ділянок розмінування: тип і назва завдання
+    // копіюються з атрибутів ділянки, до якої прив'язаний маршрут.
+    // Порожні значення не пишуться, щоб не затирати наявні дані.
+    const minefield = snapshot?.minefields.find((item) => item.taskId === draft.taskId);
+    const minefieldAttributes = minefield?.attributes ?? {};
+    put(
+      'taskName',
+      minefieldText(minefieldAttributes, 'task_name', 'task_name_ukr', 'taskname') ||
+        minefield?.name,
+    );
+    put('taskType', minefieldText(minefieldAttributes, 'task_type', 'tasktype'));
+    // Збереження маршруту означає перевірку даних — ставимо 'yes'
+    // (для кодованого домену підбереться відповідний код).
+    put('dataChecked', 'yes', AFFIRMATIVE_DOMAIN_VALUE);
 
     return { attributes, geometry, lengthKm, surveyDate, objectIdField: layer.objectIdField };
   };
