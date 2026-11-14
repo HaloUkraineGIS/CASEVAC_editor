@@ -36,7 +36,7 @@ function defaultRedirectUri(): string {
 }
 
 export const appConfig = {
-  version: '0.5.15',
+  version: '0.5.16',
 
   /**
    * 'demo'  — локальні демонстраційні дані, вхід не потрібен (типово для розробки);
@@ -138,7 +138,7 @@ export const appConfig = {
       surveyedBy: 'surveyed_by',
       surveyDate: 'survey_date',
       createdAt: 'created_date',
-      dataChecked: 'data_checked',
+      dataCheked: 'data_cheked',
     },
     facilities: {
       name: 'name',

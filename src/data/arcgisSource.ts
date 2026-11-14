@@ -45,8 +45,8 @@ const ROUTE_CANDIDATES: Record<string, string[]> = {
   isCurrent: ['is_current', 'iscurrent', 'actual', 'is_active'],
   /** Тип завдання ділянки (поле task_type шару маршрутів). */
   taskType: ['task_type', 'tasktype'],
-  /** Ознака перевірки даних маршруту. */
-  dataChecked: ['data_checked', 'datachecked'],
+  /** Ознака перевірки даних маршруту (поле data_cheked — саме так, з однією «k»). */
+  dataCheked: ['data_cheked', 'datacheked'],
   surveyedBy: ['surveyed_by', 'surveyedby', 'surveyed', 'created_by_medic'],
   surveyDate: ['survey_date', 'surveydate', 'last_edited_date', 'created_date'],
   createdAt: ['created_date', 'creation_date', 'creationdate'],
@@ -466,6 +466,31 @@ export function createArcGisSource(token: string): DataSource {
     if (!routeFields.facilityGuid) {
       notices.push('Шар маршрутів: не знайдено поле зв’язку із закладом (med_facility_guid).');
     }
+    if (!routeFields.taskName) {
+      notices.push('Шар маршрутів: не знайдено поле назви завдання (task_name) — воно не заповнюватиметься.');
+    }
+    if (!routeFields.taskType) {
+      notices.push('Шар маршрутів: не знайдено поле типу завдання (task_type) — воно не заповнюватиметься.');
+    }
+    if (!routeFields.dataCheked) {
+      notices.push('Шар маршрутів: не знайдено поле перевірки даних (data_cheked) — воно не заповнюватиметься.');
+    }
+    if (
+      minefieldsLayerInfo &&
+      minefields.length > 0 &&
+      !minefields.some(
+        (item) => minefieldText(item.attributes, 'task_name', 'task_name_ukr', 'taskname') !== '',
+      )
+    ) {
+      notices.push('Шар ділянок: не знайдено атрибут назви завдання (task_name) — він не копіюватиметься в маршрути.');
+    }
+    if (
+      minefieldsLayerInfo &&
+      minefields.length > 0 &&
+      !minefields.some((item) => minefieldText(item.attributes, 'task_type', 'tasktype') !== '')
+    ) {
+      notices.push('Шар ділянок: не знайдено атрибут типу завдання (task_type) — він не копіюватиметься в маршрути.');
+    }
     if (schema.fields.length === 0) {
       notices.push('Шар закладів: не знайдено редагованих атрибутивних полів.');
     }
@@ -633,7 +658,8 @@ export function createArcGisSource(token: string): DataSource {
     put('taskType', minefieldText(minefieldAttributes, 'task_type', 'tasktype'));
     // Збереження маршруту означає перевірку даних — ставимо 'yes'
     // (для кодованого домену підбереться відповідний код).
-    put('dataChecked', 'yes', AFFIRMATIVE_DOMAIN_VALUE);
+    // Поле в сервісі називається data_cheked (з однією «k»).
+    put('dataCheked', 'yes', AFFIRMATIVE_DOMAIN_VALUE);
 
     return { attributes, geometry, lengthKm, surveyDate, objectIdField: layer.objectIdField };
   };
