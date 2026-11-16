@@ -36,7 +36,7 @@ function defaultRedirectUri(): string {
 }
 
 export const appConfig = {
-  version: '0.5.17',
+  version: '0.5.22',
 
   /**
    * 'demo'  — локальні демонстраційні дані, вхід не потрібен (типово для розробки);
@@ -132,6 +132,8 @@ export const appConfig = {
       taskId: 'task_id',
       taskCode: 'task_code',
       taskName: 'task_name',
+      /** Тип завдання (CDS — '20'). Лише читання: запис task_type вимкнено. */
+      taskType: 'task_type',
       facilityGuid: 'med_facility_guid',
       isCurrent: 'is_current',
       surveyedBy: 'surveyed_by',

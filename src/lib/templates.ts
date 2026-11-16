@@ -14,9 +14,13 @@
 
 import regionTemplateUrl from '../../template/region_accident-response-plan.docx?url';
 import taskTemplateUrl from '../../template/task_accident-response-plan.docx?url';
+import cdsTemplateUrl from '../../template/CDS_accident-response-plan.docx?url';
 
 /** Шаблон плану реагування маршруту CASEVAC. */
 export const TASK_TEMPLATE_URL = taskTemplateUrl;
 
 /** Шаблон плану реагування на область. */
 export const REGION_TEMPLATE_URL = regionTemplateUrl;
+
+/** Шаблон плану реагування для CDS (централізовані майданчики знищення). */
+export const CDS_TEMPLATE_URL = cdsTemplateUrl;

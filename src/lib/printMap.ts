@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Карти для аркуша експорту (основна та врізка із закладом).
  *
  * Обидві карти — окремі MapView з підкладкою Esri World Imagery. На них
@@ -9,14 +9,20 @@
 import Basemap from '@arcgis/core/Basemap.js';
 import Graphic from '@arcgis/core/Graphic.js';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer.js';
+import type Layer from '@arcgis/core/layers/Layer.js';
+import type Sublayer from '@arcgis/core/layers/support/Sublayer.js';
 import TileLayer from '@arcgis/core/layers/TileLayer.js';
 import Map from '@arcgis/core/Map.js';
 import MapView from '@arcgis/core/views/MapView.js';
+import WebMap from '@arcgis/core/WebMap.js';
 import SimpleLineSymbol from '@arcgis/core/symbols/SimpleLineSymbol.js';
 import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol.js';
 import type { SymbolUnion } from '@arcgis/core/symbols/types.js';
+import { appConfig } from '../config/appConfig';
 import { distanceMeters } from './format';
 import { niceScale } from './printLayout';
+import { registerPortalToken } from './portalToken';
+import { findSettlementsLayer } from './settlements';
 import type { LonLat } from '../types';
 
 const ESRI_WORLD_IMAGERY = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer';
@@ -294,5 +300,81 @@ export async function waitForViewIdle(view: MapView, timeoutMs = 15000): Promise
   await view.when();
   while (view.updating && Date.now() - started < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+}
+
+/** Пошук шару у веб-карті — див. `findSettlementsLayer` у `./settlements`. */
+
+/**
+ * Завантажує веб-карту один раз і повертає шар «Населені пункти» як шаблон
+ * для клонування. Клонуємо, бо один екземпляр шару не може жити у двох картах,
+ * а символи й підписи мають бути саме ті, що налаштовані у веб-карті
+ * (напівпрозора біла заливка, сірий контур, підписи `adm4_ua`).
+ */
+let settlementsTemplatePromise: Promise<Layer | Sublayer | null> | null = null;
+
+function loadSettlementsTemplate(token: string, expiresAt: number): Promise<Layer | Sublayer | null> {
+  if (!settlementsTemplatePromise) {
+    settlementsTemplatePromise = (async (): Promise<Layer | Sublayer | null> => {
+      registerPortalToken(token, expiresAt);
+      const webmap = new WebMap({ portalItem: { id: appConfig.webMapId } });
+      await webmap.load();
+      const hit = findSettlementsLayer(webmap.layers);
+      if (!hit) {
+        webmap.destroy();
+        return null;
+      }
+      const target = hit.layer as unknown as { type?: string; load?: () => Promise<unknown> };
+      // Підшари не клонуються в окрему карту — підтримуємо лише цілий шар.
+      if (target.type === 'sublayer') {
+        if (import.meta.env.DEV) {
+          console.info('[printMap] Населені пункти — підшар сервісу, пропускаємо');
+        }
+        webmap.destroy();
+        return null;
+      }
+      try {
+        await target.load?.();
+      } catch {
+        webmap.destroy();
+        return null;
+      }
+      return hit.layer;
+    })().catch(() => {
+      settlementsTemplatePromise = null;
+      return null;
+    });
+  }
+  return settlementsTemplatePromise;
+}
+
+/**
+ * Додає шар «Населені пункти» з веб-карти Portal на карту експорту.
+ *
+ * Додається клон шару веб-карти, тому символи й підписи — ті самі, що на
+ * карті редагування. У легенду PDF шар не потрапляє (вона малюється вручну
+ * лише для маршруту, закладу й початкової точки). Без токена (демо-режим) —
+ * нічого не робить. Повертає `true`, якщо шар додано.
+ */
+export async function addSettlementsLayer(
+  view: MapView,
+  options: { token: string | null; expiresAt: number },
+): Promise<boolean> {
+  if (!options.token || !view.map) return false;
+  try {
+    registerPortalToken(options.token, options.expiresAt);
+    const template = await loadSettlementsTemplate(options.token, options.expiresAt);
+    if (!template) return false;
+
+    const layer = (template as unknown as { clone: () => Layer }).clone();
+    (layer as unknown as { legendEnabled?: boolean }).legendEnabled = false;
+    (layer as unknown as { visible?: boolean }).visible = true;
+
+    // Під графікою маршруту: населені пункти — це тло, а не вміст аркуша.
+    view.map.add(layer, 0);
+    await layer.load().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
   }
 }

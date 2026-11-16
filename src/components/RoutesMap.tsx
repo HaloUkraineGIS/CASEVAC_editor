@@ -15,6 +15,7 @@ import { appConfig } from '../config/appConfig';
 import { BASEMAP_OPTIONS, createBasemap, type BasemapKey } from '../lib/osmBasemap';
 import { registerPortalToken } from '../lib/portalToken';
 import { rememberLayerRenderer } from '../lib/layerSymbols';
+import { exposeSettlementsLayer, findSettlementsLayer } from '../lib/settlements';
 import type { FacilityRecord, LonLat, MinefieldRecord, RouteRecord } from '../types';
 
 interface RoutesMapProps {
@@ -702,6 +703,33 @@ export function RoutesMap({
         portalFacilityBaseExprRef.current = facilityLayer?.definitionExpression ?? '';
         portalRouteBaseVisibleRef.current = routeLayer?.visible ?? true;
         portalFacilityBaseVisibleRef.current = facilityLayer?.visible ?? true;
+
+        // Шар «Населені пункти» прихований у веб-карті — показуємо його на
+        // карті редагування, але не додаємо в легенду.
+        try {
+          await withTimeout(
+            Promise.all(webmapLayers.map((layer) => layer.load?.())),
+            WEBMAP_TIMEOUT_MS,
+          );
+          if (!cancelled) {
+            const settlementsHit = findSettlementsLayer(webmap.layers);
+            if (settlementsHit) {
+              const toggled = exposeSettlementsLayer(settlementsHit);
+              if (import.meta.env.DEV) {
+                console.info('[RoutesMap] Шар населених пунктів', {
+                  title: settlementsHit.layer.title ?? 'без назви',
+                  alreadyVisible: settlementsHit.alreadyVisible,
+                  unhidden: toggled,
+                });
+              }
+            } else if (import.meta.env.DEV) {
+              console.info('[RoutesMap] Шар населених пунктів не знайдено у веб-карті');
+            }
+          }
+        } catch {
+          // Населені пункти — необов'язковий шар: ігноруємо будь-які помилки.
+        }
+        if (cancelled) return;
 
         if (import.meta.env.DEV) {
           console.info('[RoutesMap] Portal-шари для фільтра за закладом', {

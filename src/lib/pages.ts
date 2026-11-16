@@ -25,6 +25,6 @@ export const pageMeta: Record<PageId, PageMeta> = {
   'eod-plan': {
     label: 'Маршрути CASEVAC CDS',
     shortLabel: 'Маршрути CASEVAC CDS',
-    description: 'Плани CASEVAC для завдань EOD та їхні шаблони.',
+    description: 'Маршрути евакуації до централізованих майданчиків знищення.',
   },
 };

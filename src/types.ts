@@ -24,6 +24,11 @@ export interface RouteRecord {
   surveyDate: string;
   /** Дата створення, ISO (yyyy-mm-dd). */
   createdAt?: string;
+  /**
+   * Тип завдання ділянки (`task_type` шару маршрутів).
+   * Маршрути CDS мають значення `'20'`; для решти поле може бути відсутнє.
+   */
+  taskType?: string;
   /** Довжина маршруту в кілометрах. */
   length?: number;
   geometry: LonLat[];

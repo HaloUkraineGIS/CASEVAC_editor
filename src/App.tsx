@@ -7,6 +7,7 @@ import { Sidebar } from './components/Sidebar';
 import { ToastProvider, useToast } from './components/ToastContext';
 import { groupFacilitiesByRegion, filterActiveFacilities } from './lib/facilityRegion';
 import { AreaPlanPage } from './pages/AreaPlanPage';
+import { EodPlanPage } from './pages/EodPlanPage';
 import { FacilitiesPage } from './pages/FacilitiesPage';
 import { RoutesPage } from './pages/RoutesPage';
 import type { PageId } from './types';
@@ -31,9 +32,8 @@ function AppFrame() {
         return <FacilitiesPage />;
       case 'area-plan':
         return <AreaPlanPage />;
-      // Сторінка 'eod-plan' («Маршрути CASEVAC CDS») вимкнена і недоступна.
       case 'eod-plan':
-        return <FacilitiesPage />;
+        return <EodPlanPage />;
       case 'routes':
       default:
         return <RoutesPage />;
@@ -54,6 +54,7 @@ function AppFrame() {
             filterActiveFacilities(snapshot.facilities),
             snapshot.facilitySchema,
           ).length,
+          cdsRoutes: snapshot.routes.filter((route) => route.taskType === '20').length,
         }}
       />
       <main className="main-content">

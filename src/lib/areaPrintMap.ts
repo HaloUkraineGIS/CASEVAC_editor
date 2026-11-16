@@ -31,6 +31,8 @@ import {
   resolveServicePointSymbol,
 } from './layerSymbols';
 import {
+  exposeLayerWithoutLegend,
+  findLayerByTitle,
   findMedicalTarget,
   isolateMedicalLayers,
   type MedicalTarget,
@@ -212,6 +214,23 @@ export async function createAreaSheetView(
       const target = findMedicalTarget(webmap.layers);
       if (!target) throw new Error('Не вдалося визначити шар медичних закладів');
       if (!webmap.basemap) throw new Error('У веб-карті немає підкладки');
+
+      // Шар «Області» показуємо на експортній карті як є (зі своїми
+      // символами), але в легенду не додаємо — вона будується лише
+      // за шаром медичних закладів.
+      const oblastiHit = findLayerByTitle(webmap.layers, [['област'], ['oblast'], ['region']]);
+      if (oblastiHit) {
+        const toggled = exposeLayerWithoutLegend(oblastiHit);
+        if (import.meta.env.DEV) {
+          console.info('[AreaMapExport] Шар областей на експортній карті', {
+            title: (oblastiHit.layer as unknown as { title?: string }).title ?? 'без назви',
+            alreadyVisible: oblastiHit.alreadyVisible,
+            unhidden: toggled,
+          });
+        }
+      } else if (import.meta.env.DEV) {
+        console.info('[AreaMapExport] Шар областей не знайдено у веб-карті');
+      }
 
       applyFacilityFilter(target, options.facilities);
 

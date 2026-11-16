@@ -1,4 +1,4 @@
-import { Activity, Building2, CircleHelp, Globe2, LogIn, LogOut, Map, X } from 'lucide-react';
+import { Activity, Building2, CircleHelp, Globe2, LogIn, LogOut, Map, ShieldAlert, X } from 'lucide-react';
 import type { PageId } from '../types';
 import { useAuth } from '../auth/AuthContext';
 import { useData } from '../data/DataContext';
@@ -15,6 +15,7 @@ interface SidebarProps {
     routes: number;
     facilities: number;
     areaPlans: number;
+    cdsRoutes: number;
   };
 }
 
@@ -37,9 +38,12 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
     { page: 'facilities', icon: Building2, count: counts.facilities },
     { page: 'routes', icon: Map, count: counts.routes },
   ];
-  // Сторінка «Маршрути CASEVAC CDS» (eod-plan) вимкнена: пункт прибрано
-  // з навігації разом із підписом «Плани реагування».
-  const planNav: NavItem[] = [{ page: 'area-plan', icon: Globe2, count: counts.areaPlans }];
+  // Сторінка «Маршрути CASEVAC CDS» (eod-plan) — ті самі маршрути, але лише
+  // з task_type = '20' (централізовані майданчики знищення).
+  const planNav: NavItem[] = [
+    { page: 'eod-plan', icon: ShieldAlert, count: counts.cdsRoutes },
+    { page: 'area-plan', icon: Globe2, count: counts.areaPlans },
+  ];
 
   const syncState = (() => {
     if (dataStatus === 'error')

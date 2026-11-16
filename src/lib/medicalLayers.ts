@@ -97,6 +97,91 @@ export function findMedicalTarget(layers: Collection<Layer>): MedicalTarget | nu
   return null;
 }
 
+/** Знайдений за назвою шар веб-карти разом із ланцюжком батьків. */
+export interface NamedLayerHit {
+  layer: Layer | Sublayer;
+  ancestors: Layer[];
+  /** Чи був шар уже видимим до втручання. */
+  alreadyVisible: boolean;
+}
+
+/**
+ * Шукає шар за ключовими словами в назві (регістронезалежно).
+ *
+ * Достатньо, щоб збіглася будь-яка група (усі слова в ній).
+ * Шукає включно з групами та підшарами MapImageLayer.
+ */
+export function findLayerByTitle(
+  layers: Collection<Layer> | Layer[],
+  keywords: string[][],
+): NamedLayerHit | null {
+  const list = Array.isArray(layers) ? layers : layers.toArray();
+  const matches = (title: string | null | undefined): boolean => {
+    const text = (title ?? '').toLowerCase();
+    return keywords.some((group) => group.every((word) => text.includes(word)));
+  };
+
+  const walk = (items: Layer[], ancestors: Layer[]): NamedLayerHit | null => {
+    for (const layer of items) {
+      if (matches(layer.title)) {
+        return { layer, ancestors, alreadyVisible: layer.visible };
+      }
+      if (layer.type === 'group') {
+        const found = walk((layer as GroupLayer).layers.toArray(), [...ancestors, layer]);
+        if (found) return found;
+      } else if (layer.type === 'map-image') {
+        const subs = (layer as MapImageLayer).sublayers?.toArray() ?? [];
+        for (const sub of subs) {
+          if (matches(sub.title)) {
+            return {
+              layer: sub,
+              ancestors: [...ancestors, layer],
+              alreadyVisible: sub.visible,
+            };
+          }
+          const nested = (sub as unknown as { sublayers?: Collection<Sublayer> }).sublayers?.toArray() ?? [];
+          if (nested.length > 0) {
+            const found = walk(nested as unknown as Layer[], [...ancestors, layer, sub as unknown as Layer]);
+            if (found) return found;
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  return walk(list, []);
+}
+
+/**
+ * Показує шар на карті, але ховає з легенди.
+ *
+ * Повертає назви шарів, у яких довелося ввімкнути видимість (для діагностики).
+ * Батьківські групи/сервіси теж вмикаються — інакше вкладений шар
+ * не відмалюється. `legendEnabled = false` ставиться лише на сам шар,
+ * тому решта легенди не змінюється.
+ */
+export function exposeLayerWithoutLegend(hit: NamedLayerHit): string[] {
+  const toggled: string[] = [];
+  for (const ancestor of hit.ancestors) {
+    const holder = ancestor as unknown as { visible?: boolean };
+    if (holder.visible === false) {
+      holder.visible = true;
+      toggled.push(ancestor.title || 'без назви');
+    }
+  }
+  const target = hit.layer as unknown as { visible?: boolean; legendEnabled?: boolean };
+  if (target.visible === false) {
+    target.visible = true;
+    toggled.push(
+      (hit.layer as unknown as { title?: string }).title || 'без назви',
+    );
+  }
+  // У легенду шар не додаємо — лише на карту.
+  target.legendEnabled = false;
+  return toggled;
+}
+
 /** OBJECTID з атрибутів графіка (назва поля у різних шарах відрізняється). */
 export function readObjectId(
   attributes: Record<string, unknown>,

@@ -296,6 +296,24 @@ const minefields: MinefieldRecord[] = [
       imsma_hazard_code: 'SHA-134',
     },
   },
+  {
+    id: 'mf-cds-01',
+    taskId: '900',
+    taskCode: 'CDS-26-00001',
+    name: 'Централізований майданчик знищення ВНП',
+    location: [30.55, 50.32],
+    attributes: {
+      task_id: '900',
+      task_code: 'CDS-26-00001',
+      task_name_ukr: 'Централізований майданчик знищення ВНП',
+      task_type: '20',
+      oblast_ukr: 'Київська',
+      rayon_ukr: 'Фастівський',
+      council_ukr: 'Гатненська сільська',
+      locality_ukr: 'Гатне',
+      imsma_hazard_code: 'CDS-001',
+    },
+  },
 ];
 
 function facility(id: string): FacilityRecord {
@@ -315,6 +333,7 @@ function route(
   createdAt: string,
   length: number,
   start: [number, number],
+  taskType?: string,
 ): RouteRecord {
   const target = facility(facilityId);
   const end = target.location ?? start;
@@ -324,6 +343,7 @@ function route(
     code,
     taskId,
     taskName,
+    taskType,
     facilityId,
     facilityName: target.name,
     isCurrent,
@@ -407,6 +427,32 @@ const routes: RouteRecord[] = [
     '2026-08-14',
     15.7,
     [30.4221, 50.5512],
+  ),
+  route(
+    'r-cds-01',
+    'CDS-26-00001',
+    '900',
+    'f1',
+    true,
+    'Олена Коваль',
+    '2026-10-20',
+    '2026-10-21',
+    9.4,
+    [30.55, 50.32],
+    '20',
+  ),
+  route(
+    'r-cds-02',
+    'CDS-26-00001',
+    '900',
+    'f5',
+    true,
+    'Максим Бойко',
+    '2026-10-22',
+    '2026-10-23',
+    11.8,
+    [30.55, 50.32],
+    '20',
   ),
 ];
 

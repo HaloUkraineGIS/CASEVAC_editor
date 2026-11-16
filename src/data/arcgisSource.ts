@@ -41,6 +41,8 @@ const ROUTE_CANDIDATES: Record<string, string[]> = {
   taskId: ['task_id', 'taskid'],
   taskCode: ['task_code', 'taskcode'],
   taskName: ['task_name', 'taskname', 'task_name_ukr', 'tasknameukr'],
+  /** Тип завдання (CDS — '20'). Лише читання: запис task_type вимкнено. */
+  taskType: ['task_type', 'tasktype'],
   facilityGuid: ['med_facility_guid', 'med_facility_globalid', 'facility_guid'],
   isCurrent: ['is_current', 'iscurrent', 'actual', 'is_active'],
   /** Ознака перевірки даних маршруту (поле data_cheked — саме так, з однією «k»). */
@@ -395,6 +397,7 @@ export function createArcGisSource(token: string): DataSource {
         code: readText(attributes, routeFields.taskCode),
         taskId: readText(attributes, routeFields.taskId),
         taskName: readText(attributes, routeFields.taskName),
+        taskType: readText(attributes, routeFields.taskType) || undefined,
         facilityId: facilityGuid,
         facilityName: facility?.name ?? 'Заклад не визначено',
         isCurrent: mapIsCurrent(readValue(attributes, routeFields.isCurrent)),

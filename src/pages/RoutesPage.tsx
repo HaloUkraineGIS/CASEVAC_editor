@@ -28,7 +28,7 @@ import {
   routeStatusLabel,
 } from '../lib/format';
 import { exportResponsePlan } from '../lib/docxExport';
-import { TASK_TEMPLATE_URL } from '../lib/templates';
+import { CDS_TEMPLATE_URL, TASK_TEMPLATE_URL } from '../lib/templates';
 import type { RouteDraft, RouteRecord } from '../types';
 
 // Ліниво завантажуємо модальне вікно карти, щоб не тягнути ArcGIS-чанк у головний бандл
@@ -57,13 +57,16 @@ const FILTERS: { id: RouteFilter; label: string }[] = [
 /** Скільки маршрутів показуємо на сторінці; решта — скрол усередині таблиці. */
 const PAGE_SIZE = 100;
 
-export function RoutesPage() {
+/** Варіант сторінки: звичайні маршрути ділянок або маршрути CDS (task_type = '20'). */
+export type RoutesVariant = 'routes' | 'cds';
+
+export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } = {}) {
   const { snapshot, source, createRoute, updateRoute, deleteRoute } = useData();
   const { notify } = useToast();
   const { session } = useAuth();
 
   const { routes, facilities, minefields, startPoints, medics } = snapshot;
-  const canCreate = source?.capabilities.createRoute === true;
+  const canCreate = source?.capabilities.createRoute === true && variant === 'routes';
   const canEdit = source?.capabilities.editRoute === true;
   const canDelete = source?.capabilities.deleteRoute === true;
 
@@ -92,9 +95,19 @@ export function RoutesPage() {
 
   const filtersActive = query.trim().length > 0 || filter !== 'all' || facilityFilter !== 'all';
 
+  // Розбиття за типом завдання: CDS-сторінка показує лише маршрути з
+  // task_type = '20', сторінка ділянок — усі інші (включно без типу).
+  const baseRoutes = useMemo(
+    () =>
+      variant === 'cds'
+        ? routes.filter((route) => route.taskType === '20')
+        : routes.filter((route) => route.taskType !== '20'),
+    [routes, variant],
+  );
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return routes
+    return baseRoutes
       .filter((route) => {
         const matchesQuery =
           needle.length === 0 ||
@@ -111,7 +124,7 @@ export function RoutesPage() {
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return dateB - dateA;
       });
-  }, [routes, query, facilityFilter, filter]);
+  }, [baseRoutes, query, facilityFilter, filter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -150,6 +163,23 @@ export function RoutesPage() {
   const activeFacility = facilities.find((facility) => facility.id === activeRoute?.facilityId);
   const activeStart = activeRoute?.geometry[0];
   const activeEnd = activeRoute?.geometry[activeRoute.geometry.length - 1];
+
+  /**
+   * Ділянка активного маршруту. CDS-маршрути не прив'язані до мінних полів,
+   * а CDS-шаблону дані ділянки не потрібні — тому для CDS відсутня ділянка
+   * замінюється заглушкою з даних маршруту, а не помилкою.
+   */
+  const activeMinefield = useMemo(() => {
+    const found = minefields.find((item) => item.taskId === activeRoute?.taskId);
+    if (found || !activeRoute || variant !== 'cds') return found;
+    return {
+      id: `cds-${activeRoute.taskId}`,
+      taskId: activeRoute.taskId,
+      taskCode: activeRoute.code,
+      name: activeRoute.taskName || 'Централізований майданчик знищення',
+      attributes: {},
+    };
+  }, [minefields, activeRoute, variant]);
 
   const goToPage = (next: number) => {
     setPage(Math.min(Math.max(next, 1), pageCount));
@@ -215,7 +245,7 @@ export function RoutesPage() {
   const handleExportPlan = async () => {
     if (!activeRoute) return;
 
-    const minefield = minefields.find((item) => item.taskId === activeRoute.taskId);
+    const minefield = activeMinefield;
     const facility = facilities.find((item) => item.id === activeRoute.facilityId);
 
     if (!minefield) {
@@ -241,8 +271,9 @@ export function RoutesPage() {
       } else {
         // Інакше використовуємо локальний шаблон із каталогу `template/`
         // (імпорт через ?url дає коректний URL і в dev, і в build).
+        // Для CDS — окремий шаблон централізованих майданчиків знищення.
         await exportResponsePlan(activeRoute, minefield, minefield.attributes, facility, {
-          templatePath: TASK_TEMPLATE_URL,
+          templatePath: variant === 'cds' ? CDS_TEMPLATE_URL : TASK_TEMPLATE_URL,
         });
       }
 
@@ -264,20 +295,28 @@ export function RoutesPage() {
     <div className="page-content routes-page">
       <section className="page-heading page-heading-compact">
         <div>
-          <h1 className="h1-compact">Маршрути CASEVAC ділянок розмінування</h1>
-          <p>Керуйте маршрутами евакуації та пов’язаними медичними закладами.</p>
+          <h1 className="h1-compact">
+            {variant === 'cds' ? 'Маршрути CASEVAC CDS' : 'Маршрути CASEVAC ділянок розмінування'}
+          </h1>
+          <p>
+            {variant === 'cds'
+              ? 'Керуйте маршрутами евакуації до централізованих майданчиків знищення.'
+              : 'Керуйте маршрутами евакуації та пов’язаними медичними закладами.'}
+          </p>
         </div>
-        <div className="heading-actions">
-          <button
-            className="button button-primary"
-            onClick={openDraft}
-            disabled={!canCreate}
-            title={headingCanCreateTitle}
-          >
-            <Plus size={18} />
-            Створити маршрут
-          </button>
-        </div>
+        {variant === 'routes' && (
+          <div className="heading-actions">
+            <button
+              className="button button-primary"
+              onClick={openDraft}
+              disabled={!canCreate}
+              title={headingCanCreateTitle}
+            >
+              <Plus size={18} />
+              Створити маршрут
+            </button>
+          </div>
+        )}
       </section>
 
       <SnapshotNotices floating />
@@ -483,7 +522,7 @@ export function RoutesPage() {
                   onClick={() => setFilter(item.id)}
                 >
                   {item.label}
-                  {item.id === 'all' && <span>{routes.length}</span>}
+                  {item.id === 'all' && <span>{baseRoutes.length}</span>}
                 </button>
               ))}
             </div>
@@ -611,14 +650,15 @@ export function RoutesPage() {
           </div>
         </section>
 
-        <PageFooter note="Огляд маршрутів" />
+        <PageFooter note={variant === 'cds' ? 'Огляд маршрутів CDS' : 'Огляд маршрутів'} />
 
         {mapExportOpen && activeRoute && (
           <Suspense fallback={null}>
             <RouteMapExportModal
               route={activeRoute}
               facility={activeFacility}
-              minefield={minefields.find((item) => item.taskId === activeRoute.taskId)}
+              minefield={activeMinefield}
+              siteKind={variant === 'cds' ? 'cdsSite' : 'minefield'}
               onClose={() => setMapExportOpen(false)}
             />
           </Suspense>

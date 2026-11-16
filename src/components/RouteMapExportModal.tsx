@@ -28,6 +28,7 @@ import {
 import { jpegToPdf } from '../lib/printPdf';
 import { loadSvgImage } from '../lib/svgImage';
 import {
+  addSettlementsLayer,
   applyViewScale,
   autoScaleFor,
   createSheetView,
@@ -42,6 +43,11 @@ interface RouteMapExportModalProps {
   facility: FacilityRecord | undefined;
   minefield: MinefieldRecord | undefined;
   onClose: () => void;
+  /**
+   * Тип об'єкта на аркуші: мінне поле або централізований майданчик
+   * знищення (CDS). Впливає лише на підпис під шапкою.
+   */
+  siteKind?: 'minefield' | 'cdsSite';
 }
 
 /** Пікселів на міліметр для попереднього перегляду (96 dpi). */
@@ -49,7 +55,13 @@ const PREVIEW_PX_PER_MM = 96 / 25.4;
 /** Роздільна здатність PDF-аркуша. */
 const EXPORT_DPI = 300;
 
-export function RouteMapExportModal({ route, facility, minefield, onClose }: RouteMapExportModalProps) {
+export function RouteMapExportModal({
+  route,
+  facility,
+  minefield,
+  onClose,
+  siteKind = 'minefield',
+}: RouteMapExportModalProps) {
   const { notify } = useToast();
   const { session } = useAuth();
   const token = session?.token ?? null;
@@ -181,10 +193,13 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
     const tit = minefield?.name ? ` — ${minefield.name}` : '';
     return {
       heading: `CASEVAC${len}`,
-      subheading: `Ділянка розмінування ${route.code}${tit}`,
+      subheading:
+        siteKind === 'cdsSite'
+          ? `Централізований майданчик для знищення вибухонебезпечних предметів${tit}`
+          : `Ділянка розмінування ${route.code}${tit}`,
       facilityCaption: facility?.address ? facility.address : (facility?.name ?? route.facilityName),
     };
-  }, [route, minefield, facility]);
+  }, [route, minefield, facility, siteKind]);
 
   // === SVG логотипи та стрілка півночі ===
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
@@ -225,6 +240,13 @@ export function RouteMapExportModal({ route, facility, minefield, onClose }: Rou
     });
 
     mainViewRef.current = main;
+
+    // Населені пункти з веб-карти Portal — тло під графікою маршруту.
+    // У легенду PDF цей шар не додається.
+    void addSettlementsLayer(main, {
+      token,
+      expiresAt: session?.expiresAt ?? 0,
+    }).catch(() => undefined);
 
     main
       .when(async () => {
