@@ -41,6 +41,10 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Збірка бандла ArcGIS важка за пам'яттю; дефолтного heap Node на раннері
+          # не вистачає (exit 134 / SIGABRT). Піднімаємо ліміт старої купи.
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
