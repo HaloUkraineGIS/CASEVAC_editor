@@ -1,6 +1,6 @@
 /** Доменні типи застосунку. Не залежать від ArcGIS API. */
 
-export type PageId = 'routes' | 'facilities' | 'area-plan' | 'eod-plan';
+export type PageId = 'routes' | 'facilities' | 'area-plan' | 'eod-plan' | 'help';
 
 /** [довгота, широта] — порядок, прийнятий в ArcGIS. */
 export type LonLat = [number, number];
@@ -10,7 +10,7 @@ export interface RouteRecord {
   id: string;
   /** OBJECTID для операцій редагування ArcGIS. */
   objectId?: number;
-  /** task_code мінного поля, до якого прив'язаний маршрут. */
+  /** task_code ділянки розмінування, до якої прив'язаний маршрут. */
   code: string;
   taskId: string;
   /** Назва завдання (task_name) з сервісу маршрутів CASEVAC. */
@@ -135,6 +135,8 @@ export interface DataSnapshot {
   routes: RouteRecord[];
   facilities: FacilityRecord[];
   minefields: MinefieldRecord[];
+  /** Майданчики знищення (окремий шар; джерело списку для CDS-маршрутів). */
+  destructionSites: MinefieldRecord[];
   startPoints: StartPointRecord[];
   /** Список медиків для полів surveyed_by / visited_by. */
   medics: string[];
@@ -150,6 +152,11 @@ export interface RouteDraft {
   facilityId: string;
   surveyedBy: string;
   surveyDate: string;
+  /**
+   * Тип завдання (`task_type`). Для CDS при збереженні підставляється '20';
+   * звичайні маршрути лишають поле порожнім (запис task_type вимкнено).
+   */
+  taskType?: string;
   /** Лінія маршруту у WGS84: початкова точка ділянки → медичний заклад. */
   geometry: LonLat[];
 }

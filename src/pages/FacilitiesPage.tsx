@@ -491,8 +491,6 @@ export function FacilitiesPage() {
           </div>
         </section>
 
-        <PageFooter note="Реєстр медичних закладів" />
-
         {formMode && schema && (
           <Modal
             wide
@@ -701,6 +699,8 @@ export function FacilitiesPage() {
           </Modal>
         )}
       </DataStateGate>
+
+      <PageFooter note="Реєстр медичних закладів" />
     </div>
   );
 }

@@ -91,7 +91,9 @@ export function createDemoSource(): DataSource {
     createRoute: async (draft: RouteDraft): Promise<RouteRecord> => {
       const facility = snapshot.facilities.find((item) => item.id === draft.facilityId);
       if (!facility) throw new Error('Обраний медичний заклад не знайдено');
-      const minefield = snapshot.minefields.find((item) => item.taskId === draft.taskId);
+      const minefield =
+        snapshot.minefields.find((item) => item.taskId === draft.taskId) ??
+        snapshot.destructionSites.find((item) => item.taskId === draft.taskId);
       const start: LonLat = minefield?.location ?? [0, 0];
       const end: LonLat = facility.location ?? start;
       const geometry = draft.geometry.length >= 2 ? draft.geometry : [start, end];
@@ -103,6 +105,7 @@ export function createDemoSource(): DataSource {
         code: draft.code,
         taskId: draft.taskId,
         taskName: minefield?.name ?? '',
+        taskType: draft.taskType,
         facilityId: facility.id,
         facilityName: facility.name,
         isCurrent: true,
@@ -131,12 +134,15 @@ export function createDemoSource(): DataSource {
         throw new Error('Намалюйте лінію маршруту: потрібно щонайменше дві точки.');
       }
 
-      const minefield = snapshot.minefields.find((item) => item.taskId === draft.taskId);
+      const minefield =
+        snapshot.minefields.find((item) => item.taskId === draft.taskId) ??
+        snapshot.destructionSites.find((item) => item.taskId === draft.taskId);
       const updated: RouteRecord = {
         ...record,
         code: draft.code,
         taskId: draft.taskId,
         taskName: minefield?.name ?? record.taskName,
+        taskType: draft.taskType ?? record.taskType,
         facilityId: facility.id,
         facilityName: facility.name,
         surveyedBy: draft.surveyedBy,

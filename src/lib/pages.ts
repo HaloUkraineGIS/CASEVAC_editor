@@ -27,4 +27,9 @@ export const pageMeta: Record<PageId, PageMeta> = {
     shortLabel: 'Маршрути CASEVAC CDS',
     description: 'Маршрути евакуації до централізованих майданчиків знищення.',
   },
+  help: {
+    label: 'Довідка',
+    shortLabel: 'Довідка',
+    description: 'Інструкція користувача для медичного офіцера.',
+  },
 };

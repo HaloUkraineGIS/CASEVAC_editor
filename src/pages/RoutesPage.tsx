@@ -65,10 +65,13 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
   const { notify } = useToast();
   const { session } = useAuth();
 
-  const { routes, facilities, minefields, startPoints, medics } = snapshot;
-  const canCreate = source?.capabilities.createRoute === true && variant === 'routes';
+  const { routes, facilities, minefields, destructionSites, startPoints, medics } = snapshot;
+  const canCreate = source?.capabilities.createRoute === true;
   const canEdit = source?.capabilities.editRoute === true;
   const canDelete = source?.capabilities.deleteRoute === true;
+
+  // CDS-сторінка працює з майданчиками знищення замість ділянок розмінування.
+  const siteList = variant === 'cds' ? destructionSites : minefields;
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RouteFilter>('all');
@@ -165,12 +168,12 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
   const activeEnd = activeRoute?.geometry[activeRoute.geometry.length - 1];
 
   /**
-   * Ділянка активного маршруту. CDS-маршрути не прив'язані до мінних полів,
+   * Ділянка активного маршруту. CDS-маршрути не прив'язані до ділянок розмінування,
    * а CDS-шаблону дані ділянки не потрібні — тому для CDS відсутня ділянка
    * замінюється заглушкою з даних маршруту, а не помилкою.
    */
   const activeMinefield = useMemo(() => {
-    const found = minefields.find((item) => item.taskId === activeRoute?.taskId);
+    const found = siteList.find((item) => item.taskId === activeRoute?.taskId);
     if (found || !activeRoute || variant !== 'cds') return found;
     return {
       id: `cds-${activeRoute.taskId}`,
@@ -179,7 +182,7 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
       name: activeRoute.taskName || 'Централізований майданчик знищення',
       attributes: {},
     };
-  }, [minefields, activeRoute, variant]);
+  }, [siteList, activeRoute, variant]);
 
   const goToPage = (next: number) => {
     setPage(Math.min(Math.max(next, 1), pageCount));
@@ -218,7 +221,8 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
   };
 
   const handleCreateRoute = async (draft: RouteDraft) => {
-    const created = await createRoute(draft);
+    // CDS-маршрути завжди мають task_type = '20'.
+    const created = await createRoute(variant === 'cds' ? { ...draft, taskType: '20' } : draft);
     setSelectedId(created.id);
     closeBuilder();
     const length = created.length ?? polylineLengthKm(created.geometry);
@@ -227,7 +231,7 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
   };
 
   const handleUpdateRoute = async (route: RouteRecord, draft: RouteDraft) => {
-    const updated = await updateRoute(route, draft);
+    const updated = await updateRoute(route, variant === 'cds' ? { ...draft, taskType: '20' } : draft);
     setSelectedId(updated.id);
     closeBuilder();
     const length = updated.length ?? polylineLengthKm(updated.geometry);
@@ -248,13 +252,12 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
     const minefield = activeMinefield;
     const facility = facilities.find((item) => item.id === activeRoute.facilityId);
 
-    if (!minefield) {
-      notify('Не знайдено мінне поле для маршруту', 'error');
-      return;
-    }
-
-    if (!facility) {
-      notify('Не знайдено медичний заклад для маршруту', 'error');
+    // Повідомляємо точно, чого бракує для експорту, а не лише першу проблему.
+    if (!minefield || !facility) {
+      const missing: string[] = [];
+      if (!minefield) missing.push('ділянки розмінування');
+      if (!facility) missing.push('медичного закладу');
+      notify(`Маршрут ${activeRoute.code} не привʼязаний: немає ${missing.join(' і ')}.`, 'error');
       return;
     }
 
@@ -296,7 +299,9 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
       <section className="page-heading page-heading-compact">
         <div>
           <h1 className="h1-compact">
-            {variant === 'cds' ? 'Маршрути CASEVAC CDS' : 'Маршрути CASEVAC ділянок розмінування'}
+            {variant === 'cds'
+              ? 'Маршрути CASEVAC майданчиків для знищення CDS'
+              : 'Маршрути CASEVAC ділянок розмінування'}
           </h1>
           <p>
             {variant === 'cds'
@@ -304,19 +309,17 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
               : 'Керуйте маршрутами евакуації та пов’язаними медичними закладами.'}
           </p>
         </div>
-        {variant === 'routes' && (
-          <div className="heading-actions">
-            <button
-              className="button button-primary"
-              onClick={openDraft}
-              disabled={!canCreate}
-              title={headingCanCreateTitle}
-            >
-              <Plus size={18} />
-              Створити маршрут
-            </button>
-          </div>
-        )}
+        <div className="heading-actions">
+          <button
+            className="button button-primary"
+            onClick={openDraft}
+            disabled={!canCreate}
+            title={headingCanCreateTitle}
+          >
+            <Plus size={18} />
+            Створити маршрут
+          </button>
+        </div>
       </section>
 
       <SnapshotNotices floating />
@@ -351,8 +354,9 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
                 <RoutesMap
                   routes={filtered}
                   facilities={facilities}
-                  minefields={minefields}
+                  minefields={siteList}
                   facilityFilterId={facilityFilter}
+                  taskTypeFilter={variant === 'cds' ? '20' : undefined}
                   selectedId={activeRoute?.id ?? null}
                   onSelect={selectRoute}
                   expanded={mapExpanded}
@@ -427,7 +431,7 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
                     <span className="detail-label">НАПРЯМОК ЕВАКУАЦІЇ</span>
                     <div className="detail-coordinates">
                       <div>
-                        <span>МІННЕ ПОЛЕ · ПОЧАТОК</span>
+                        <span>{variant === 'cds' ? 'CDS · ПОЧАТОК' : 'ДІЛЯНКА РОЗМІНУВАННЯ · ПОЧАТОК'}</span>
                         <strong>{activeStart ? formatCoordinatePair(activeStart) : '—'}</strong>
                       </div>
                       <div className="detail-direction">
@@ -650,8 +654,6 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
           </div>
         </section>
 
-        <PageFooter note={variant === 'cds' ? 'Огляд маршрутів CDS' : 'Огляд маршрутів'} />
-
         {mapExportOpen && activeRoute && (
           <Suspense fallback={null}>
             <RouteMapExportModal
@@ -667,11 +669,13 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
         {draftOpen && (
           <Suspense fallback={null}>
             <RouteBuilderModal
-              minefields={minefields}
+              minefields={siteList}
               facilities={facilities}
               medics={medics}
+              routes={baseRoutes}
               startPoints={startPoints}
               route={editingRoute ?? undefined}
+              siteKind={variant === 'cds' ? 'cdsSite' : 'minefield'}
               onClose={closeBuilder}
               onCreate={handleCreateRoute}
               onUpdate={canEdit ? handleUpdateRoute : undefined}
@@ -680,6 +684,8 @@ export function RoutesPage({ variant = 'routes' }: { variant?: RoutesVariant } =
           </Suspense>
         )}
       </DataStateGate>
+
+      <PageFooter note={variant === 'cds' ? 'Огляд маршрутів CDS' : 'Огляд маршрутів'} />
     </div>
   );
 }

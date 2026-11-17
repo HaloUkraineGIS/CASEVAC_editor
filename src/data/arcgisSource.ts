@@ -54,9 +54,9 @@ const ROUTE_CANDIDATES: Record<string, string[]> = {
 };
 
 const MINEFIELD_CANDIDATES: Record<string, string[]> = {
-  taskId: ['task_id', 'taskid'],
-  taskCode: ['task_code', 'taskcode'],
-  name: ['name', 'task_name', 'title'],
+  taskId: ['task_id', 'taskid', 'facility_id', 'facilityid', 'globalid', 'global_id'],
+  taskCode: ['task_code', 'taskcode', 'facility_code', 'facilitycode'],
+  name: ['name', 'task_name', 'title', 'facility_name', 'facilityname'],
 };
 
 const START_POINT_CANDIDATES: Record<string, string[]> = {
@@ -322,28 +322,38 @@ export function createArcGisSource(token: string): DataSource {
   const load = async (): Promise<DataSnapshot> => {
     const notices: string[] = [];
 
-    // Початкові точки й мінні поля — допоміжні шари: якщо вони недоступні
+    // Початкові точки й ділянки розмінування — допоміжні шари: якщо вони недоступні
     // або мають неповні метадані, застосунок працює з рештою даних.
-    const [routesLayerInfo, facilitiesLayerInfo, minefieldsLayerInfo, startLayerInfo] = await Promise.all([
-      describeLayer(appConfig.services.routes.url, authToken),
-      describeLayer(appConfig.services.facilities.url, authToken),
-      describeLayer(appConfig.services.minefields.url, authToken).catch(() => null),
-      describeLayer(appConfig.services.startPoints.url, authToken).catch(() => null),
-    ]);
+    const [routesLayerInfo, facilitiesLayerInfo, minefieldsLayerInfo, startLayerInfo, sitesLayerInfo] =
+      await Promise.all([
+        describeLayer(appConfig.services.routes.url, authToken),
+        describeLayer(appConfig.services.facilities.url, authToken),
+        describeLayer(appConfig.services.minefields.url, authToken).catch(() => null),
+        describeLayer(appConfig.services.startPoints.url, authToken).catch(() => null),
+        appConfig.services.destructionSites.url
+          ? describeLayer(appConfig.services.destructionSites.url, authToken).catch(() => null)
+          : Promise.resolve(null),
+      ]);
 
-    const [routeFeatures, facilityFeatures, minefieldFeatures, startFeatures] = await Promise.all([
-      queryAllFeatures(appConfig.services.routes.url, routesLayerInfo, { token: authToken }),
-      queryAllFeatures(appConfig.services.facilities.url, facilitiesLayerInfo, { token: authToken }),
-      minefieldsLayerInfo
-        ? queryAllFeatures(appConfig.services.minefields.url, minefieldsLayerInfo, {
-            token: authToken,
-          }).catch(() => [] as Feature[])
-        : Promise.resolve([] as Feature[]),
+    const [routeFeatures, facilityFeatures, minefieldFeatures, startFeatures, siteFeatures] =
+      await Promise.all([
+        queryAllFeatures(appConfig.services.routes.url, routesLayerInfo, { token: authToken }),
+        queryAllFeatures(appConfig.services.facilities.url, facilitiesLayerInfo, { token: authToken }),
+        minefieldsLayerInfo
+          ? queryAllFeatures(appConfig.services.minefields.url, minefieldsLayerInfo, {
+              token: authToken,
+            }).catch(() => [] as Feature[])
+          : Promise.resolve([] as Feature[]),
       startLayerInfo
         ? queryAllFeatures(appConfig.services.startPoints.url, startLayerInfo, { token: authToken }).catch(
             () => [] as Feature[],
           )
         : Promise.resolve([] as Feature[]),
+        sitesLayerInfo
+          ? queryAllFeatures(appConfig.services.destructionSites.url, sitesLayerInfo, {
+              token: authToken,
+            }).catch(() => [] as Feature[])
+          : Promise.resolve([] as Feature[]),
     ]);
 
     facilitySchema = buildFacilitiesSchema(facilitiesLayerInfo);
@@ -352,6 +362,9 @@ export function createArcGisSource(token: string): DataSource {
     const routeFields = resolveFields(routesLayerInfo, ROUTE_CANDIDATES);
     const minefieldFields: FieldMap = minefieldsLayerInfo
       ? resolveFields(minefieldsLayerInfo, MINEFIELD_CANDIDATES)
+      : {};
+    const siteFields: FieldMap = sitesLayerInfo
+      ? resolveFields(sitesLayerInfo, MINEFIELD_CANDIDATES)
       : {};
     const startFields: FieldMap = startLayerInfo ? resolveFields(startLayerInfo, START_POINT_CANDIDATES) : {};
 
@@ -423,7 +436,17 @@ export function createArcGisSource(token: string): DataSource {
       attributes: feature.attributes,
     }));
 
-    // Якщо в шарі маршрутів немає поля task_name, беремо назву з мінного поля.
+    // Майданчики для знищення — окремий шар, джерело списку для CDS-маршрутів.
+    const destructionSites: MinefieldRecord[] = siteFeatures.map((feature, index) => ({
+      id: readText(feature.attributes, sitesLayerInfo?.globalIdField ?? null) || `site-${index}`,
+      taskId: readText(feature.attributes, siteFields.taskId),
+      taskCode: readText(feature.attributes, siteFields.taskCode),
+      name: readText(feature.attributes, siteFields.name),
+      location: pointFromGeometry(feature.geometry),
+      attributes: feature.attributes,
+    }));
+
+    // Якщо в шарі маршрутів немає поля task_name, беремо назву з ділянки розмінування.
     const minefieldNameByTaskId = new Map(minefields.map((minefield) => [minefield.taskId, minefield.name]));
     routes.forEach((route) => {
       if (!route.taskName) route.taskName = minefieldNameByTaskId.get(route.taskId) ?? '';
@@ -484,12 +507,17 @@ export function createArcGisSource(token: string): DataSource {
       notices.push('Шар початкових точок порожній або недоступний для читання.');
     }
     if (!minefieldsLayerInfo) {
-      notices.push('Шар мінних полів недоступний для читання — список мінних полів порожній.');
+      notices.push('Шар ділянок розмінування недоступний для читання — список ділянок розмінування порожній.');
     } else if (minefields.length === 0) {
-      notices.push('Шар мінних полів не містить об’єктів.');
+      notices.push('Шар ділянок розмінування не містить об’єктів.');
+    }
+    if (!sitesLayerInfo) {
+      notices.push('Шар майданчиків знищення недоступний або не налаштований — список майданчиків порожній.');
+    } else if (destructionSites.length === 0) {
+      notices.push('Шар майданчиків знищення не містить об’єктів.');
     }
 
-    snapshot = { routes, facilities, minefields, startPoints, medics, facilitySchema: schema, notices };
+    snapshot = { routes, facilities, minefields, destructionSites, startPoints, medics, facilitySchema: schema, notices };
     return snapshot;
   };
 
@@ -622,14 +650,26 @@ export function createArcGisSource(token: string): DataSource {
     put('length', lengthKm);
 
     // Назва завдання копіюється з атрибутів ділянки, до якої прив'язаний
-    // маршрут. Порожнє значення не пишеться, щоб не затирати наявні дані.
-    const minefield = snapshot?.minefields.find((item) => item.taskId === draft.taskId);
+    // маршрут (для CDS — з атрибутів майданчика знищення).
+    // Порожнє значення не пишеться, щоб не затирати наявні дані.
+    const minefield =
+      snapshot?.minefields.find((item) => item.taskId === draft.taskId) ??
+      snapshot?.destructionSites.find((item) => item.taskId === draft.taskId);
     const minefieldAttributes = minefield?.attributes ?? {};
     put(
       'taskName',
-      minefieldText(minefieldAttributes, 'task_name', 'task_name_ukr', 'taskname') ||
-        minefield?.name,
+      minefieldText(
+        minefieldAttributes,
+        'task_name',
+        'task_name_ukr',
+        'taskname',
+        'facility_name',
+        'facilityname',
+      ) || minefield?.name,
     );
+    // Тип завдання пишемо лише явно заданий у чернетці (CDS — '20'):
+    // для звичайних маршрутів поле лишається недоторканим.
+    if (draft.taskType) put('taskType', draft.taskType);
     // Збереження маршруту означає перевірку даних — ставимо 'yes'
     // (для кодованого домену підбереться відповідний код).
     // Поле в сервісі називається data_cheked (з однією «k»).
@@ -655,13 +695,17 @@ export function createArcGisSource(token: string): DataSource {
     }
 
     const facility = snapshot?.facilities.find((item) => item.id === draft.facilityId);
-    const taskName = snapshot?.minefields.find((item) => item.taskId === draft.taskId)?.name ?? '';
+    const taskName =
+      snapshot?.minefields.find((item) => item.taskId === draft.taskId)?.name ??
+      snapshot?.destructionSites.find((item) => item.taskId === draft.taskId)?.name ??
+      '';
     return {
       id: added.globalId || (added.objectId !== undefined ? String(added.objectId) : `route-${Date.now()}`),
       objectId: added.objectId,
       code: draft.code,
       taskId: draft.taskId,
       taskName,
+      taskType: draft.taskType,
       facilityId: draft.facilityId,
       facilityName: facility?.name ?? '',
       isCurrent: true,
@@ -699,12 +743,15 @@ export function createArcGisSource(token: string): DataSource {
 
     const facility = snapshot?.facilities.find((item) => item.id === draft.facilityId);
     const taskName =
-      snapshot?.minefields.find((item) => item.taskId === draft.taskId)?.name ?? record.taskName;
+      snapshot?.minefields.find((item) => item.taskId === draft.taskId)?.name ??
+      snapshot?.destructionSites.find((item) => item.taskId === draft.taskId)?.name ??
+      record.taskName;
     return {
       ...record,
       code: draft.code,
       taskId: draft.taskId,
       taskName,
+      taskType: draft.taskType ?? record.taskType,
       facilityId: draft.facilityId,
       facilityName: facility?.name ?? record.facilityName,
       surveyedBy: draft.surveyedBy,

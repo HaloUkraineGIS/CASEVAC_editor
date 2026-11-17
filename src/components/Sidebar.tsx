@@ -147,8 +147,9 @@ export function Sidebar({ page, onNavigate, open, onClose, counts }: SidebarProp
 
         <span className="nav-caption nav-caption-lower">ДОВІДКА</span>
         <button
-          className="nav-link muted-link"
-          onClick={() => notify('Документацію буде додано пізніше.', 'info')}
+          className={`nav-link muted-link ${page === 'help' ? 'active' : ''}`}
+          onClick={() => handleNavigate('help')}
+          aria-current={page === 'help' ? 'page' : undefined}
         >
           <CircleHelp size={18} />
           <span>Довідка</span>

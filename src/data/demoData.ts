@@ -296,6 +296,10 @@ const minefields: MinefieldRecord[] = [
       imsma_hazard_code: 'SHA-134',
     },
   },
+];
+
+/** Майданчики для знищення — окремий шар, джерело списку для CDS-маршрутів. */
+const destructionSites: MinefieldRecord[] = [
   {
     id: 'mf-cds-01',
     taskId: '900',
@@ -303,13 +307,16 @@ const minefields: MinefieldRecord[] = [
     name: 'Централізований майданчик знищення ВНП',
     location: [30.55, 50.32],
     attributes: {
+      facility_id: '900',
+      facility_code: 'CDS-26-00001',
+      facility_name: 'Централізований майданчик знищення ВНП',
       task_id: '900',
       task_code: 'CDS-26-00001',
       task_name_ukr: 'Централізований майданчик знищення ВНП',
       task_type: '20',
       oblast_ukr: 'Київська',
       rayon_ukr: 'Фастівський',
-      council_ukr: 'Гатненська сільська',
+      council_ukr: 'Гатненська селищна',
       locality_ukr: 'Гатне',
       imsma_hazard_code: 'CDS-001',
     },
@@ -337,7 +344,10 @@ function route(
 ): RouteRecord {
   const target = facility(facilityId);
   const end = target.location ?? start;
-  const taskName = minefields.find((item) => item.taskId === taskId)?.name ?? '';
+  const taskName =
+    minefields.find((item) => item.taskId === taskId)?.name ??
+    destructionSites.find((item) => item.taskId === taskId)?.name ??
+    '';
   return {
     id,
     code,
@@ -466,6 +476,7 @@ export const demoSnapshot: DataSnapshot = {
   routes,
   facilities,
   minefields,
+  destructionSites,
   startPoints,
   medics: ['Олена Коваль', 'Іван Петренко', 'Максим Бойко', 'Наталія Гриценко'],
   facilitySchema: demoFacilitySchema,

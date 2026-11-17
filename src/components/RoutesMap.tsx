@@ -24,9 +24,15 @@ interface RoutesMapProps {
   minefields: MinefieldRecord[];
   /** Фільтр за медичним закладом: 'all' або id закладу. */
   facilityFilterId?: string;
+  /**
+   * Обмеження маршрутів за типом завдання (`task_type`) для серверного шару
+   * в режимі Portal (наприклад, '20' для CDS). Демо-режим і резервний шар
+   * уже відфільтровані на рівні даних і цього не потребують.
+   */
+  taskTypeFilter?: string | null;
   /** Вибраний маршрут — підсвічується на карті. */
   selectedId: string | null;
-  /** Клік по маршруту, мінному полю або закладу на карті. */
+  /** Клік по маршруту, ділянці розмінування або закладу на карті. */
   onSelect: (id: string) => void;
   /** Розгорнутий (модальний) режим карти. */
   expanded?: boolean;
@@ -69,7 +75,7 @@ const DEMO_LEGEND: DemoLegendItem[] = [
   { key: 'route', label: 'Маршрут CASEVAC', line: ROUTE_SYMBOL },
   { key: 'selected', label: 'Вибраний маршрут', line: SELECTED_ROUTE_SYMBOL },
   { key: 'facility', label: 'Медичний заклад', point: FACILITY_SYMBOL },
-  { key: 'minefield', label: 'Мінне поле (task_id)', point: MINEFIELD_SYMBOL },
+  { key: 'minefield', label: 'Ділянка розмінування (task_id)', point: MINEFIELD_SYMBOL },
 ];
 
 /** Колір символу ArcGIS → CSS-колір для легенди. */
@@ -252,7 +258,7 @@ function filterFacilities(facilities: FacilityRecord[], filterId: string): Facil
   return filterId === 'all' ? facilities : facilities.filter((facility) => facility.id === filterId);
 }
 
-/** Мінні поля, пов'язані з видимими маршрутами (у режимі фільтра за закладом). */
+/** Ділянки розмінування, пов'язані з видимими маршрутами (у режимі фільтра за закладом). */
 function filterMinefields(
   minefields: MinefieldRecord[],
   routes: RouteRecord[],
@@ -263,7 +269,7 @@ function filterMinefields(
   return minefields.filter((minefield) => taskIds.has(minefield.taskId));
 }
 
-/** Малює у шарі маршрути, заклади й мінні поля з урахуванням фільтра за закладом. */
+/** Малює у шарі маршрути, заклади й ділянки розмінування з урахуванням фільтра за закладом. */
 function drawFiltered(
   layer: GraphicsLayer,
   routes: RouteRecord[],
@@ -362,15 +368,16 @@ function routeGraphic(route: RouteRecord, symbol: SimpleLineSymbol, extra: Recor
  * Карта сторінки «Маршрути CASEVAC ділянок розмінування».
  *
  * У режимі Portal показує серверні шари: медичні заклади, маршрути евакуації,
- * полігони обстежень, лінію фронту та мінні поля (їх зв'язок із маршрутами —
+ * полігони обстежень, лінію фронту та ділянки розмінування (їх зв'язок із маршрутами —
  * поля task_id / task_code). Без токена (демо-режим) малює маршрути, заклади
- * й мінні поля з поточного знімка даних на тій самій підкладці.
+ * й ділянки розмінування з поточного знімка даних на тій самій підкладці.
  */
 export function RoutesMap({
   routes,
   facilities,
   minefields,
   facilityFilterId = 'all',
+  taskTypeFilter = null,
   selectedId,
   onSelect,
   expanded = false,
@@ -386,6 +393,7 @@ export function RoutesMap({
   const facilitiesRef = useRef<FacilityRecord[]>(facilities);
   const minefieldsRef = useRef<MinefieldRecord[]>(minefields);
   const facilityFilterRef = useRef(facilityFilterId);
+  const taskTypeFilterRef = useRef<string | null>(taskTypeFilter ?? null);
   const selectedRef = useRef<string | null>(selectedId);
   const onSelectRef = useRef(onSelect);
   const basemapKeyRef = useRef<BasemapKey>('osm');
@@ -414,6 +422,7 @@ export function RoutesMap({
   facilitiesRef.current = facilities;
   minefieldsRef.current = minefields;
   facilityFilterRef.current = facilityFilterId;
+  taskTypeFilterRef.current = taskTypeFilter ?? null;
   selectedRef.current = selectedId;
   onSelectRef.current = onSelect;
   basemapKeyRef.current = basemapKey;
@@ -783,11 +792,13 @@ export function RoutesMap({
     status,
   ]);
 
-  // У режимі Portal фільтруємо серверні шари за вибраним закладом.
+  // У режимі Portal фільтруємо серверні шари за вибраним закладом
+  // та (опційно) за типом завдання — наприклад, лише task_type = '20' на CDS-сторінці.
   const applyPortalFilter = useCallback(() => {
     if (modeRef.current !== 'portal') return;
     const seq = ++portalFilterSeqRef.current;
     const filterId = facilityFilterRef.current;
+    const taskTypeValue = taskTypeFilterRef.current;
     const routesLayer = portalRouteLayerRef.current;
     const facilitiesLayer = portalFacilityLayerRef.current;
 
@@ -809,8 +820,25 @@ export function RoutesMap({
     };
 
     // Скидання фільтра: повертаємо початкові вирази та видимість шарів.
+    // Обмеження за типом завдання діє поверх початкового виразу.
+    const typeField = taskTypeValue
+      ? layerField(routesLayer, ['task_type', 'tasktype'])
+      : '';
+    const withType = (expression: string): string => {
+      if (!taskTypeValue || !typeField) return expression;
+      const escapedType = taskTypeValue.replace(/'/g, "''");
+      const clause = `${typeField} = '${escapedType}'`;
+      return expression ? `(${expression}) AND (${clause})` : clause;
+    };
+
     if (filterId === 'all') {
-      setExpression(routesLayer, portalRouteBaseExprRef.current);
+      if (taskTypeValue && !typeField) {
+        // Поле типу завдання не знайдено — точний серверний фільтр
+        // неможливий, показуємо відфільтровані дані резервним шаром.
+        showOverlay();
+        return;
+      }
+      setExpression(routesLayer, withType(portalRouteBaseExprRef.current));
       setExpression(facilitiesLayer, portalFacilityBaseExprRef.current);
       setVisible(routesLayer, portalRouteBaseVisibleRef.current);
       setVisible(facilitiesLayer, portalFacilityBaseVisibleRef.current);
@@ -851,7 +879,12 @@ export function RoutesMap({
       return;
     }
 
-    const routeExpression = `${routeField} = '${escaped}'`;
+    if (taskTypeValue && !typeField) {
+      showOverlay();
+      return;
+    }
+
+    const routeExpression = withType(`${routeField} = '${escaped}'`);
     const facilityExpression = `${facilityField} = '${escaped}'`;
     setExpression(routesLayer, routeExpression);
     setExpression(facilitiesLayer, facilityExpression);
@@ -1061,7 +1094,7 @@ export function RoutesMap({
         </div>
       )}
       {status === 'ready' && modeRef.current === 'demo' && (
-        <span className="facility-map-hint">Натисніть на маршрут або мінне поле, щоб вибрати</span>
+        <span className="facility-map-hint">Натисніть на маршрут або ділянку розмінування, щоб вибрати</span>
       )}
       {status === 'error' && message && <span className="facility-map-details">{message}</span>}
     </div>

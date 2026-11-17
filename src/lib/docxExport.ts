@@ -2,7 +2,7 @@
  * Експорт документу Word за шаблоном task_accident-response-plan.docx
  *
  * Плейсхолдери:
- * - З шару мінних полів (task Minefield BAC CB): task_code, task_name_ukr, oblast, rayon, council, locality, imsma_hazard_code
+ * - З шару ділянок розмінування (task Minefield BAC CB): task_code, task_name_ukr, oblast, rayon, council, locality, imsma_hazard_code
  * - З шару закладів (Medical facilities): решта 32 плейсхолдери
  * - Додаткові: current_year, created_by_medic, military_medic_group
  */
@@ -110,7 +110,7 @@ export async function loadLocalTemplate(path: string): Promise<ArrayBuffer> {
 }
 
 /**
- * Витягти дані мінного поля з атрибутів для шаблону.
+ * Витягти дані ділянки розмінування з атрибутів для шаблону.
  */
 export function extractMinefieldData(
   minefield: MinefieldRecord,

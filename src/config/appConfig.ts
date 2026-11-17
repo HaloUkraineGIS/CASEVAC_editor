@@ -36,7 +36,7 @@ function defaultRedirectUri(): string {
 }
 
 export const appConfig = {
-  version: '0.5.22',
+  version: '0.5.31',
 
   /**
    * 'demo'  — локальні демонстраційні дані, вхід не потрібен (типово для розробки);
@@ -93,6 +93,14 @@ export const appConfig = {
       title: 'Start evac point',
       url: 'https://gis.htgoims.org/server/rest/services/Ukraine/ukr_start_evac_point/MapServer/0',
       /** Запис неможливий: шар опублікований як MapServer. Потрібен FeatureServer. */
+      editable: false,
+    },
+    /**
+     * Майданчики для знищення — джерело списку facility_code для CDS-маршрутів.
+     */
+    destructionSites: {
+      title: 'Майданчики для знищення',
+      url: 'https://gis-services.htgoims.org/arcgis/rest/services/ukraine/ukr_cds/MapServer/0',
       editable: false,
     },
   },

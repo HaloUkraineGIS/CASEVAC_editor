@@ -17,6 +17,7 @@ const emptySnapshot: DataSnapshot = {
   routes: [],
   facilities: [],
   minefields: [],
+  destructionSites: [],
   startPoints: [],
   medics: [],
   facilitySchema: null,

@@ -107,7 +107,7 @@ src/
 
 - прочитано **127 медичних закладів** і **996 маршрутів**; `capabilities` шару закладів — `Query,Create,Update,Delete,Uploads,Editing,Extract,ChangeTracking`;
 - реальна схема закладу містить `name_ukr`, `full_name_ukr`, `name_eng`, `full_name_eng`, `region`, `address`, `phone`, `contact_ukr`, `contact_eng`, `type_of_hospital`, `x`, `y`, 21 поле можливостей, `created_by_medic`, `is_active`, `status_date`; окремого поля «Відділення» немає, тому список показує стислий перелік наявних можливостей;
-- виправлено завантаження: у шару мінних полів `objectIdField` у метаданих дорівнює `null` (фактично `task_id`), через що запит з `orderByFields=objectid` повертав `400 Invalid or missing input parameters` і блокував всю сторінку. Тепер OID/GID визначаються за типами полів, а сортування додається лише за наявності поля;
+- виправлено завантаження: у шару ділянок розмінування `objectIdField` у метаданих дорівнює `null` (фактично `task_id`), через що запит з `orderByFields=objectid` повертав `400 Invalid or missing input parameters` і блокував всю сторінку. Тепер OID/GID визначаються за типами полів, а сортування додається лише за наявності поля;
 - карта вибору точки використовує відкриту підкладку OpenStreetMap і не залежить від доступності веб-карти Portal. Це важливо, бо токен, виданий для `gis-services.htgoims.org`, веб-карта на `gis.htgoims.org` не приймає (`498 Invalid Token`);
 - реальні операції запису (`applyEdits`) на продакшн-шарі ще не виконувались — потрібне окреме підтвердження відповідальної особи.
 

@@ -9,6 +9,7 @@ import { groupFacilitiesByRegion, filterActiveFacilities } from './lib/facilityR
 import { AreaPlanPage } from './pages/AreaPlanPage';
 import { EodPlanPage } from './pages/EodPlanPage';
 import { FacilitiesPage } from './pages/FacilitiesPage';
+import { HelpPage } from './pages/HelpPage';
 import { RoutesPage } from './pages/RoutesPage';
 import type { PageId } from './types';
 
@@ -34,6 +35,8 @@ function AppFrame() {
         return <AreaPlanPage />;
       case 'eod-plan':
         return <EodPlanPage />;
+      case 'help':
+        return <HelpPage />;
       case 'routes':
       default:
         return <RoutesPage />;

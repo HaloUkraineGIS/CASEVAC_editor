@@ -1488,6 +1488,9 @@ select:focus-visible {
   justify-content: space-between;
   color: #a3ada8;
   font-size: 8px;
+  /* У flex-колонці сторінки футер завжди внизу, навіть коли контенту мало. */
+  margin-top: auto;
+  flex-shrink: 0;
 }
 .page-footnote span:first-child {
   font-weight: 700;
@@ -2852,15 +2855,22 @@ select:focus-visible {
   margin-left: auto;
 }
 /* Сторінка «План реагування на область»: перелік областей + карта закладів. */
+.page-content.area-plan-page {
+  /* Власна flex-колонка рівно на висоту вʼюпорта: сітка займає весь вільний простір,
+     футер завжди внизу, скролу сторінки немає (список скролиться всередині). */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 560px;
+}
 .area-plan-grid {
   display: grid;
   grid-template-columns: minmax(270px, 0.62fr) minmax(0, 1.38fr);
   gap: 14px;
   align-items: stretch;
-  /* Займаємо доступну висоту екрана, щоб таблиця й карта не висіли вгорі. */
-  height: calc(100vh - 330px);
-  height: calc(100dvh - 330px);
-  min-height: 540px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .area-plan-panel {
   display: flex;
@@ -2892,6 +2902,11 @@ select:focus-visible {
   min-height: 0;
 }
 @media (max-width: 1100px) {
+  .page-content.area-plan-page {
+    /* У стовпчиковому мобільному розкладі повертаємось до природного скролу сторінки. */
+    height: auto;
+    min-height: 0;
+  }
   .area-plan-grid {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
@@ -4344,9 +4359,6 @@ select:focus-visible {
     flex: 1 1 auto;
     min-height: 0;
   }
-  .routes-page .page-footnote {
-    display: none;
-  }
 
   /* Форма нового маршруту — така сама компактна, як форма закладу */
   .routes-page .modal-header {
@@ -5368,4 +5380,135 @@ select:focus-visible {
   color: #8a9790;
   font-size: 10.5px;
   text-align: center;
+}
+
+/* Довідка користувача */
+.help-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.help-toc {
+  padding: 14px 16px;
+}
+.help-toc .section-title {
+  margin-bottom: 8px;
+}
+.help-toc-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.help-toc-links a {
+  font-size: 12.5px;
+  color: #147d61;
+  background: #eef6f1;
+  border: 1px solid #d8e9df;
+  border-radius: 999px;
+  padding: 4px 11px;
+  text-decoration: none;
+}
+.help-toc-links a:hover {
+  background: #e0f0e7;
+}
+.help-section {
+  padding: 18px 20px;
+  scroll-margin-top: 12px;
+}
+.help-section h2 {
+  font-size: 16.5px;
+  margin: 0 0 10px;
+  color: #10382a;
+}
+.help-section h3 {
+  font-size: 13.5px;
+  margin: 14px 0 6px;
+  color: #1c5a44;
+}
+.help-section p,
+.help-section li {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #2c3b34;
+}
+.help-section p {
+  margin: 0 0 8px;
+}
+.help-section ul,
+.help-section ol {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+.help-card {
+  background: #f3faf6;
+  border: 1px solid #dcebe2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #1c5a44;
+}
+.help-card strong {
+  font-size: 13.5px;
+}
+.help-card span {
+  font-size: 12.5px;
+  color: #436156;
+  line-height: 1.45;
+}
+.help-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: #eef4ff;
+  border: 1px solid #d3e0f5;
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin: 10px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2b3d5c;
+}
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 10px;
+  font-size: 13px;
+}
+.help-table th,
+.help-table td {
+  border: 1px solid #dde7e1;
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+}
+.help-table thead th {
+  background: #eef6f1;
+  color: #10382a;
+  font-size: 12.5px;
+}
+.help-table code {
+  background: #eef2ef;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .help-section {
+    padding: 14px;
+  }
+  .help-toc-links a {
+    font-size: 12px;
+  }
 }

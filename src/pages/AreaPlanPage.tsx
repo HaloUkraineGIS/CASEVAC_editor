@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { FileText, Globe2, Loader2, Map, MapPin } from 'lucide-react';
-import { DataStateGate, SnapshotNotices } from '../components/PageFooter';
+import { DataStateGate, PageFooter, SnapshotNotices } from '../components/PageFooter';
 import { useToast } from '../components/ToastContext';
 import { useData } from '../data/DataContext';
 import {
@@ -105,7 +105,7 @@ export function AreaPlanPage() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content area-plan-page">
       <section className="page-heading">
         <div>
           <h1>План реагування на область</h1>
@@ -216,6 +216,8 @@ export function AreaPlanPage() {
           </aside>
         </section>
       </DataStateGate>
+
+      <PageFooter note="План реагування на область" />
 
       {mapExportOpen && canCreateMap && (
         <Suspense fallback={null}>

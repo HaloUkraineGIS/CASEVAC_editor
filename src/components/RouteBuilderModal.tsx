@@ -13,7 +13,7 @@ import LayerList from '@arcgis/core/widgets/LayerList.js';
 import Legend from '@arcgis/core/widgets/Legend.js';
 import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel.js';
 import Polyline from '@arcgis/core/geometry/Polyline.js';
-import { Check, Layers3, Loader2, MapPin, PencilLine, Sparkles, Trash2, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Check, Copy, Layers3, Loader2, MapPin, PencilLine, Sparkles, Trash2, TriangleAlert, Undo2, X } from 'lucide-react';
 import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useAuth } from '../auth/AuthContext';
 import { appConfig } from '../config/appConfig';
@@ -33,7 +33,7 @@ import type {
 import type { CreateEvent, RedoEvent, UndoEvent, UpdateEvent } from '@arcgis/core/widgets/Sketch/types.js';
 
 type MapMode = 'webmap' | 'fallback';
-type BuilderMode = 'choose' | 'manual' | 'semi';
+type BuilderMode = 'choose' | 'manual' | 'semi' | 'copy';
 
 function providerLabel(provider: RoutingProvider): string {
   return provider === 'arcgis' ? 'ArcGIS' : 'OSRM';
@@ -44,8 +44,15 @@ interface RouteBuilderModalProps {
   facilities: FacilityRecord[];
   medics: string[];
   startPoints: StartPointRecord[];
+  /** Існуючі маршрути — джерела геометрії для режиму копіювання. */
+  routes: RouteRecord[];
   /** Заповнений маршрут переводить вікно в режим редагування. */
   route?: RouteRecord;
+  /**
+   * Тип об'єкта початку маршруту: ділянка розмінування або майданчик знищення.
+   * Впливає лише на підпис початкової точки на карті.
+   */
+  siteKind?: 'minefield' | 'cdsSite';
   onClose: () => void;
   /** Створює маршрут у поточному джерелі даних; помилка показується у формі. */
   onCreate: (draft: RouteDraft) => Promise<RouteRecord>;
@@ -233,11 +240,13 @@ export function RouteBuilderModal({
   facilities,
   medics,
   startPoints,
+  routes,
   route,
   onClose,
   onCreate,
   onUpdate,
   onDelete,
+  siteKind = 'minefield',
 }: RouteBuilderModalProps) {
   const isEditing = route !== undefined;
   const [taskId, setTaskId] = useState(() => {
@@ -295,6 +304,47 @@ export function RouteBuilderModal({
         })),
     [minefields],
   );
+
+  /** Маршрути-джерела для копіювання геометрії (випадаючий список task-кодів). */
+  const copySourceOptions = useMemo(
+    () =>
+      [...routes]
+        .sort((left, right) =>
+          left.code.localeCompare(right.code, 'uk', { numeric: true, sensitivity: 'base' }),
+        )
+        .map((item) => ({
+          value: item.id,
+          label: item.taskName ? `${item.code} — ${item.taskName}` : item.code,
+          keywords: `${item.code} ${item.taskName} ${item.facilityName}`,
+        })),
+    [routes],
+  );
+
+  /**
+   * Копіює геометрію вибраного маршруту й переходить до ручного режиму:
+   * далі скопійований маршрут треба прив'язати до нової ділянки та закладу.
+   */
+  const handleCopyFrom = (routeId: string) => {
+    const source = routes.find((item) => item.id === routeId);
+    if (!source || source.geometry.length < 2) {
+      setError('У вибраного маршруту немає геометрії для копіювання.');
+      return;
+    }
+    cancelGeometryEditing();
+    const geometry = source.geometry.map(([lon, lat]) => [lon, lat] as LonLat);
+    pointsRef.current = geometry;
+    setPoints(geometry);
+    // Медзаклад копіюється разом з геометрією — обирати його знову не треба.
+    // Ділянку, навпаки, лишаємо порожньою: маршрут треба прив'язати до нової.
+    setFacilityId(source.facilityId);
+    setSelectedVertex(null);
+    setRouteMeta(null);
+    setRouteWarning('');
+    setError('');
+    const view = viewRef.current;
+    if (view) fitPoints(view, geometry);
+    setBuilderMode('manual');
+  };
   const facilityOptions = useMemo(
     () =>
       [...facilities]
@@ -346,6 +396,7 @@ export function RouteBuilderModal({
   const minefieldRef = useRef<MinefieldRecord | undefined>(minefield);
   const facilityRef = useRef<FacilityRecord | undefined>(facility);
   const startPointRef = useRef<LonLat | undefined>(startPoint);
+  const siteKindRef = useRef(siteKind);
 
   pointsRef.current = points;
   basemapKeyRef.current = basemapKey;
@@ -357,6 +408,7 @@ export function RouteBuilderModal({
   minefieldRef.current = minefield;
   facilityRef.current = facility;
   startPointRef.current = startPoint;
+  siteKindRef.current = siteKind;
 
   const cancelGeometryEditing = () => {
     ignoreSketchEventsRef.current = true;
@@ -466,7 +518,10 @@ export function RouteBuilderModal({
       layer.add(
         new Graphic({
           geometry: pointGeometry(currentStart),
-          symbol: labelSymbol(`Ділянка ${currentMinefield.taskCode}`, 17),
+          symbol:
+            siteKindRef.current === 'cdsSite'
+              ? labelSymbol(currentMinefield.taskCode, 17)
+              : labelSymbol(`Ділянка ${currentMinefield.taskCode}`, 17),
         }),
       );
     }
@@ -840,10 +895,16 @@ export function RouteBuilderModal({
 
   const changeTask = (nextTaskId: string) => {
     cancelGeometryEditing();
-    draftLayerRef.current?.removeAll();
+    // Перше прив'язування (порожнє значення) не стирає лінію — це потрібно,
+    // щоб скопійована геометрія пережила вибір нової ділянки. Повторна зміна
+    // вже прив'язаної ділянки лінію очищає, як і раніше.
+    const keepPoints = taskId === '';
+    if (!keepPoints) {
+      draftLayerRef.current?.removeAll();
+      pointsRef.current = [];
+      setPoints([]);
+    }
     setTaskId(nextTaskId);
-    pointsRef.current = [];
-    setPoints([]);
     setSelectedVertex(null);
     setRouteMeta(null);
     setRouteWarning('');
@@ -852,10 +913,13 @@ export function RouteBuilderModal({
 
   const changeFacility = (nextFacilityId: string) => {
     cancelGeometryEditing();
-    draftLayerRef.current?.removeAll();
+    const keepPoints = facilityId === '';
+    if (!keepPoints) {
+      draftLayerRef.current?.removeAll();
+      pointsRef.current = [];
+      setPoints([]);
+    }
     setFacilityId(nextFacilityId);
-    pointsRef.current = [];
-    setPoints([]);
     setSelectedVertex(null);
     setRouteMeta(null);
     setRouteWarning('');
@@ -1033,10 +1097,12 @@ export function RouteBuilderModal({
             {isEditing
               ? 'Змініть зв’язки, дані обстеження або лінію маршруту на карті.'
               : builderMode === 'choose'
-                ? 'Оберіть спосіб побудови маршруту — вручну або напівавтоматично.'
+                ? 'Оберіть спосіб побудови маршруту — вручну, напівавтоматично або копіюванням.'
                 : builderMode === 'semi'
                   ? 'Оберіть ділянку та заклад, побудуйте маршрут, потім відредагуйте точки.'
-                  : 'Намалюйте лінію маршруту кліками на карті.'}
+                  : builderMode === 'copy'
+                    ? 'Оберіть існуючий маршрут — його геометрію буде скопійовано.'
+                    : 'Намалюйте лінію маршруту кліками на карті.'}
           </p>
         </div>
         <button
@@ -1088,7 +1154,52 @@ export function RouteBuilderModal({
                     відредагуйте точки.
                   </span>
                 </button>
+                {!isEditing && (
+                  <button
+                    type="button"
+                    className="route-builder-choice-card"
+                    onClick={() => setBuilderMode('copy')}
+                  >
+                    <span className="route-builder-choice-icon">
+                      <Copy size={22} />
+                    </span>
+                    <strong>Копіювати з існуючого</strong>
+                    <span>
+                      Візьміть геометрію готового маршруту за основу та прив&apos;яжіть
+                      її до нової ділянки.
+                    </span>
+                  </button>
+                )}
               </div>
+            </div>
+          </div>
+        )}
+        {builderMode === 'copy' && !isEditing && (
+          <div className="route-builder-choice">
+            <div
+              className="route-builder-choice-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="route-builder-copy-title"
+            >
+              <h3 id="route-builder-copy-title">З якого маршруту копіювати?</h3>
+              <p>Геометрію буде скопійовано — далі оберіть нову ділянку та заклад.</p>
+              <SearchableSelect
+                value=""
+                options={copySourceOptions}
+                placeholder="Оберіть task_code маршруту"
+                searchPlaceholder="Пошук за кодом або назвою"
+                emptyLabel="Маршрутів для копіювання немає"
+                ariaLabel="Маршрут-джерело для копіювання"
+                onChange={handleCopyFrom}
+              />
+              <button
+                type="button"
+                className="route-builder-link"
+                onClick={() => setBuilderMode('choose')}
+              >
+                ← До способів побудови
+              </button>
             </div>
           </div>
         )}

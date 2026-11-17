@@ -44,7 +44,7 @@ interface RouteMapExportModalProps {
   minefield: MinefieldRecord | undefined;
   onClose: () => void;
   /**
-   * Тип об'єкта на аркуші: мінне поле або централізований майданчик
+   * Тип об'єкта на аркуші: ділянка розмінування або централізований майданчик
    * знищення (CDS). Впливає лише на підпис під шапкою.
    */
   siteKind?: 'minefield' | 'cdsSite';
@@ -139,7 +139,7 @@ export function RouteMapExportModal({
     };
   }, [token, facilityAttributes]);
 
-  // Об'єднуємо всі опорні точки: геометрію маршруту, заклад і мінне поле
+  // Об'єднуємо всі опорні точки: геометрію маршруту, заклад і ділянку розмінування
   const allPoints = useMemo<LonLat[]>(() => {
     const pts: LonLat[] = [...route.geometry];
     if (facilityPoint) pts.push(facilityPoint);
